@@ -8,7 +8,8 @@ namespace LlmEmbeddingsCpu.Core.Interfaces
     public interface IInputLogRepository
     {
         Task SaveLogAsync(InputLog log);
-        Task<IEnumerable<InputLog>> GetPreviousLogsAsync(DateTime? date = null);
-        void MarkFileAsDeleted(DateTime? date = null);
+        Task<IEnumerable<InputLog>> GetPreviousLogsAsync(DateTime date);
+        IEnumerable<DateTime> GetDatesToProcess();
+        Task MarkFileAsDeleted(DateTime date);
     }
 }

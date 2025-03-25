@@ -20,7 +20,7 @@ namespace LlmEmbeddingsCpu.App
         {
             // Parse command line arguments
             bool processNow = true;
-            string logDir = processNow && args.Length > 1 ? args[1] : (args.Length > 0 ? args[0] : "logs");
+            string logDir = "logs";
             
             // Configure services
             var serviceProvider = ConfigureServices(logDir);

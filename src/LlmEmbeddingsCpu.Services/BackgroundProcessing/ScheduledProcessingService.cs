@@ -73,62 +73,51 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
         {
             try
             {
-                // Use a semaphore to prevent concurrent processing
                 await _processingLock.WaitAsync();
                 
                 Console.WriteLine("Starting text processing...");
                 
-                // Get yesterday's date (we process the previous day's logs)
-                var dateToProcess = DateTime.Now.AddDays(-1).Date;
+                // Get all dates that need processing
+                var datesToProcess = _inputLogRepository.GetDatesToProcess();
                 
-                // Check if we've already processed this date
-                if (await HasBeenProcessedAsync(dateToProcess))
+                Console.WriteLine($"Found {datesToProcess.Count()} dates to process");
+                
+                foreach (var dateToProcess in datesToProcess)
                 {
-                    Console.WriteLine($"Date {dateToProcess:yyyy-MM-dd} has already been processed");
-                    return;
-                }
-                
-                // Get the keyboard logs (the main text source)
-                var keyboardLogs = await ReadKeyboardLogsAsync();
-                
-                if (keyboardLogs.Count == 0)
-                {
-                    Console.WriteLine("No keyboard logs found to process");
-                    return;
-                }
-                
-                Console.WriteLine($"Processing {keyboardLogs.Count} keyboard logs");
-                
-                // Process the logs and generate embeddings
-                var embeddings = new List<Embedding>();
-                
-                foreach (var text in keyboardLogs)
-                {
-                    if (!string.IsNullOrWhiteSpace(text))
+                    Console.WriteLine($"Processing date: {dateToProcess:yyyy-MM-dd}");
+                    
+                    // Get logs for this date
+                    var logs = await _inputLogRepository.GetPreviousLogsAsync(dateToProcess);
+                    var keyboardLogs = logs.Where(log => log.Type == InputType.Keyboard)
+                                         .Select(log => log.Content)
+                                         .ToList();
+                    
+                    Console.WriteLine($"Processing {keyboardLogs.Count} keyboard logs");
+                    
+                    // Process the logs and generate embeddings
+                    var embeddings = new List<Embedding>();
+                    
+                    foreach (var text in keyboardLogs)
                     {
-                        // Decrypt the ROT13 encoded text
-                        string decryptedText = text.FromRot13();
-
-                        // Log for debugging
-                        Console.WriteLine($"Processing text: {decryptedText}");
-                        
-                        // Generate embedding
-                        var embedding = await _embeddingService.GenerateEmbeddingAsync(decryptedText);
-                        embeddings.Add(embedding);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            string decryptedText = text.FromRot13();
+                            Console.WriteLine($"Processing text: {decryptedText}");
+                            var embedding = await _embeddingService.GenerateEmbeddingAsync(decryptedText);
+                            embeddings.Add(embedding);
+                        }
                     }
+                    
+                    Console.WriteLine($"Generated {embeddings.Count} embeddings");
+                    
+                    // Save embeddings
+                    await _embeddingRepository.SaveEmbeddingsAsync(embeddings);
+                    
+                    // Archive logs for this date
+                    await ArchiveProcessedLogsAsync(dateToProcess);
+                    
+                    Console.WriteLine($"Completed processing for date {dateToProcess:yyyy-MM-dd}");
                 }
-                
-                Console.WriteLine($"Generated {embeddings.Count} embeddings");
-                
-                // Save embeddings
-                await _embeddingRepository.SaveEmbeddingsAsync(embeddings);
-                
-                // Mark date as processed
-                await MarkAsProcessedAsync(dateToProcess);
-                
-                // Archive or rotate logs to prevent reprocessing
-                //await ArchiveProcessedLogsAsync();
-                Console.WriteLine("Archiving logs in the future...");
                 
                 Console.WriteLine("Text processing completed successfully");
             }
@@ -143,56 +132,16 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
-        private async Task<bool> HasBeenProcessedAsync(DateTime date)
+        private async Task ArchiveProcessedLogsAsync(DateTime date)
         {
             try
             {
-                string content = await _fileStorageService.ReadTextAsync(_processedMarkerFile);
-                string[] processedDates = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                
-                return processedDates.Contains(date.ToString("yyyy-MM-dd"));
-            }
-            catch
-            {
-                // File might not exist yet
-                return false;
-            }
-        }
-
-        private async Task MarkAsProcessedAsync(DateTime date)
-        {
-            string dateString = date.ToString("yyyy-MM-dd");
-            await _fileStorageService.WriteTextAsync(_processedMarkerFile, dateString + Environment.NewLine, true);
-        }
-
-        private async Task<List<string>> ReadKeyboardLogsAsync()
-        {
-            try
-            {
-                // Get yesterday's logs
-                var yesterday = DateTime.Now.AddDays(-1).Date;
-                var logs = await _inputLogRepository.GetPreviousLogsAsync(yesterday);
-                
-                return logs.Where(log => log.Type == InputType.Keyboard).Select(log => log.Content).ToList();
+                _inputLogRepository.MarkFileAsDeleted(date);
+                Console.WriteLine($"Archived logs for {date:yyyy-MM-dd}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error reading keyboard logs: {ex.Message}");
-                return new List<string>();
-            }
-        }
-
-        private async Task ArchiveProcessedLogsAsync()
-        {
-            try
-            {
-                var yesterday = DateTime.Now.AddDays(-1).Date;
-                _inputLogRepository.MarkFileAsDeleted(yesterday);
-                Console.WriteLine($"Marked logs for {yesterday:yyyy-MM-dd} as processed");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error archiving logs: {ex.Message}");
+                Console.WriteLine($"Error archiving logs for {date:yyyy-MM-dd}: {ex.Message}");
             }
         }
 

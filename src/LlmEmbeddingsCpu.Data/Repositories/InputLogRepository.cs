@@ -40,63 +40,74 @@ namespace LlmEmbeddingsCpu.Data.Repositories
             await _fileStorageService.WriteTextAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
-        public async Task<IEnumerable<InputLog>> GetPreviousLogsAsync(DateTime? date = null)
+        public IEnumerable<DateTime> GetDatesToProcess()
+        {
+            var files = _fileStorageService.ListFiles("*.txt");
+            var logFiles = files.Where(f =>  
+                f.StartsWith(_keyboardLogBaseFileName) || f.StartsWith(_mouseLogBaseFileName))
+                .OrderBy(f => f);
+
+            if (!logFiles.Any())
+            {
+                return Enumerable.Empty<DateTime>();
+            }
+
+            // Get all unique dates from the filenames using proper date extraction
+            var currentDate = DateTime.Now.Date;
+            return logFiles
+                .Select(f => {
+                    // Extract the date portion using substring
+                    int dateStart = f.IndexOf('-') + 1;
+                    int dateEnd = f.LastIndexOf('.');
+                    if (dateStart > 0 && dateEnd > dateStart)
+                    {
+                        var dateStr = f.Substring(dateStart, dateEnd - dateStart);
+                        if (DateTime.TryParseExact(dateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
+                        {
+                            return logDate;
+                        }
+                    }
+                    return DateTime.MinValue;
+                })
+                .Where(d => d != DateTime.MinValue && d < currentDate)
+                .Distinct()
+                .OrderBy(d => d);
+        }
+
+        public async Task<IEnumerable<InputLog>> GetPreviousLogsAsync(DateTime date)
         {
             try
             {
-                if (date.HasValue)
+                string keyboardFileName = $"{_keyboardLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+                string mouseFileName = $"{_mouseLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+
+                bool keyboardExists = _fileStorageService.FileExists(keyboardFileName);
+                bool mouseExists = _fileStorageService.FileExists(mouseFileName);
+
+                if (!keyboardExists && !mouseExists)
                 {
-                    string keyboardFileName = $"{_keyboardLogBaseFileName}-{date.Value:yyyy-MM-dd}.txt";
-                    string mouseFileName = $"{_mouseLogBaseFileName}-{date.Value:yyyy-MM-dd}.txt";
-
-                    bool keyboardExists = _fileStorageService.FileExists(keyboardFileName);
-                    bool mouseExists = _fileStorageService.FileExists(mouseFileName);
-
-                    if (!keyboardExists && !mouseExists)
-                    {
-                        throw new FileNotFoundException($"No log files found for date: {date.Value:yyyy-MM-dd}");
-                    }
-
-                    var logs = new List<InputLog>();
-                    
-                    if (keyboardExists)
-                    {
-                        Console.WriteLine($"Reading keyboard logs for: {date.Value:yyyy-MM-dd}");
-                        string content = await _fileStorageService.ReadTextAsync(keyboardFileName);
-                        var keyboardLogs = ParseLogsFromContent(content, InputType.Keyboard);
-                        logs.AddRange(keyboardLogs);
-                    }
-                    
-                    if (mouseExists)
-                    {
-                        Console.WriteLine($"Reading mouse logs for: {date.Value:yyyy-MM-dd}");
-                        string content = await _fileStorageService.ReadTextAsync(mouseFileName);
-                        var mouseLogs = ParseLogsFromContent(content, InputType.Mouse);
-                        logs.AddRange(mouseLogs);
-                    }
-                    
-                    return logs;
+                    throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
                 }
-                else
+
+                var logs = new List<InputLog>();
+                
+                if (keyboardExists)
                 {
-                    var files = _fileStorageService.ListFiles("*.txt");
-                    var logFiles = files.Where(f => !f.StartsWith("deleted-") && 
-                        (f.StartsWith(_keyboardLogBaseFileName) || f.StartsWith(_mouseLogBaseFileName)))
-                        .OrderBy(f => f);
-
-                    if (!logFiles.Any())
-                    {
-                        throw new FileNotFoundException("No log files available");
-                    }
-
-                    // Get the oldest date from the filenames
-                    var oldestFile = logFiles.First();
-                    var dateStr = oldestFile.Split('-')[1].Replace(".txt", "");
-                    var oldestDate = DateTime.ParseExact(dateStr, "yyyy-MM-dd", null);
-
-                    // Recursive call with the oldest date
-                    return await GetPreviousLogsAsync(oldestDate);
+                    Console.WriteLine($"Reading keyboard logs for: {date:yyyy-MM-dd}");
+                    string content = await _fileStorageService.ReadTextAsync(keyboardFileName);
+                    var keyboardLogs = ParseLogsFromContent(content, InputType.Keyboard);
+                    logs.AddRange(keyboardLogs);
                 }
+                
+                if (mouseExists)
+                {
+                    Console.WriteLine($"Reading mouse logs for: {date:yyyy-MM-dd}");
+                    string content = await _fileStorageService.ReadTextAsync(mouseFileName);
+                    var mouseLogs = ParseLogsFromContent(content, InputType.Mouse);
+                    logs.AddRange(mouseLogs);
+                }
+                
+                return logs;
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
@@ -104,7 +115,7 @@ namespace LlmEmbeddingsCpu.Data.Repositories
             }
         }
 
-        private IEnumerable<InputLog> ParseLogsFromContent(string content, InputType type)
+        private static IEnumerable<InputLog> ParseLogsFromContent(string content, InputType type)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
@@ -131,42 +142,25 @@ namespace LlmEmbeddingsCpu.Data.Repositories
             }
         }
 
-        public void MarkFileAsDeleted(DateTime? date = null)
+        public async Task MarkFileAsDeleted(DateTime date)
         {
             try
             {
-                if (date.HasValue)
+                string keyboardFileName = $"{_keyboardLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+                string mouseFileName = $"{_mouseLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+
+                bool keyboardExists = _fileStorageService.FileExists(keyboardFileName);
+                bool mouseExists = _fileStorageService.FileExists(mouseFileName);
+
+                if (!keyboardExists && !mouseExists)
                 {
-                    string keyboardFileName = $"{_keyboardLogBaseFileName}-{date.Value:yyyy-MM-dd}.txt";
-                    string mouseFileName = $"{_mouseLogBaseFileName}-{date.Value:yyyy-MM-dd}.txt";
-
-                    bool keyboardExists = _fileStorageService.FileExists(keyboardFileName);
-                    bool mouseExists = _fileStorageService.FileExists(mouseFileName);
-
-                    if (!keyboardExists && !mouseExists)
-                    {
-                        throw new FileNotFoundException($"No log files found for date: {date.Value:yyyy-MM-dd}");
-                    }
-
-                    if (keyboardExists)
-                        RenameToDeleted(keyboardFileName);
-                    if (mouseExists)
-                        RenameToDeleted(mouseFileName);
+                    throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
                 }
-                else
-                {
-                    var files = _fileStorageService.ListFiles("*.txt");
-                    var logFiles = files.Where(f => !f.StartsWith("deleted-") && 
-                        (f.StartsWith(_keyboardLogBaseFileName) || f.StartsWith(_mouseLogBaseFileName)))
-                        .OrderBy(f => f);
 
-                    if (!logFiles.Any())
-                    {
-                        throw new FileNotFoundException("No log files available to mark as deleted");
-                    }
-
-                    RenameToDeleted(logFiles.First());
-                }
+                if (keyboardExists)
+                    await RenameToDeleted(keyboardFileName);
+                if (mouseExists)
+                    await RenameToDeleted(mouseFileName);
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
@@ -174,22 +168,33 @@ namespace LlmEmbeddingsCpu.Data.Repositories
             }
         }
 
-        private void RenameToDeleted(string fileName)
+        private async Task RenameToDeleted(string fileName)
         {
             try
             {
-                string newFileName = $"deleted-{fileName}";
+                // Create logs-deleted directory if it doesn't exist
+                string deletedDir = "logs-deleted";
+                await _fileStorageService.EnsureDirectoryExistsAsync(deletedDir);
+
+                string newFileName = Path.Combine(deletedDir, fileName);
+                
+                // If file already exists in deleted directory, append timestamp to make it unique
                 if (_fileStorageService.FileExists(newFileName))
                 {
-                    throw new InvalidOperationException($"Deleted file already exists: {newFileName}");
+                    string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                    string ext = Path.GetExtension(fileName);
+                    string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+                    newFileName = Path.Combine(deletedDir, $"{fileNameWithoutExt}-{timestamp}{ext}");
                 }
 
+                // Move the file to the deleted directory
                 _fileStorageService.RenameFile(fileName, newFileName);
-                Console.WriteLine($"Successfully renamed {fileName} to {newFileName}");
+                
+                Console.WriteLine($"Successfully moved {fileName} to {newFileName}");
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Error renaming file {fileName}: {ex.Message}", ex);
+                throw new InvalidOperationException($"Error moving file {fileName} to deleted directory: {ex.Message}", ex);
             }
         }
     }
