@@ -18,7 +18,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
 
                 // Create directory path and ensure it exists
                 string datePath = Path.Combine(_embeddingDirectoryName, embedding.CreatedAt.ToString("yyyy-MM-dd"));
-                await _fileStorageService.EnsureDirectoryExistsAsync(datePath);
+                _fileStorageService.EnsureDirectoryExists(datePath);
 
                 // Create file name using Path.Combine for proper path handling
                 string fileName = Path.Combine(datePath, $"{embedding.Id}.json");
@@ -27,7 +27,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                 string json = JsonConvert.SerializeObject(embedding, Formatting.Indented);
                 
                 // Save to file
-                await _fileStorageService.WriteTextAsync(fileName, json);
+                await _fileStorageService.WriteFileAsync(fileName, json);
             }
             catch (Exception ex)
             {
@@ -80,7 +80,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                 {
                     try
                     {
-                        string json = await _fileStorageService.ReadTextAsync(file);
+                        string json = await _fileStorageService.ReadFileAsyncIfExists(file);
                         var embedding = JsonConvert.DeserializeObject<Embedding>(json);
                         if (embedding != null)
                         {
