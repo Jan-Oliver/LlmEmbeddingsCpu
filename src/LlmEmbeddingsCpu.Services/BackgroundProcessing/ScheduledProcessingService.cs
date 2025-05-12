@@ -102,6 +102,7 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                             string decryptedText = text.FromRot13();
                             Console.WriteLine($"Processing text: {decryptedText}");
                             var embedding = await _embeddingService.GenerateEmbeddingAsync(decryptedText);
+                            Console.WriteLine($"First 5 elements of embedding: {string.Join(", ", embedding.Vector.Take(5))}");
                             embeddings.Add(embedding);
                         }
                     }

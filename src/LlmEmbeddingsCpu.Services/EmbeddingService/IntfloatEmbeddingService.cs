@@ -155,14 +155,6 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 // Token type IDs are 0 for single-sentence embeddings
                 tokenTypeIdsTensor[0, i] = 0;
             }
-            
-            // Print tensor contents for debugging
-            Console.WriteLine("inputIdsTensor contents:");
-            Console.WriteLine(inputIdsTensor.ToString());
-            Console.WriteLine("\nattentionMaskTensor contents:");
-            Console.WriteLine(attentionMaskTensor.ToString());
-            Console.WriteLine("\ntokenTypeIdsTensor contents:");
-            Console.WriteLine(tokenTypeIdsTensor.ToString());
 
             // 5. Create input tensor dictionary
             var inputs = new List<NamedOnnxValue>

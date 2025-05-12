@@ -24,6 +24,12 @@
     <None Include="deps\sentence-transformers\all-MiniLM-L6-v2\tokenizer.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="deps\intfloat\multilingual-e5-small\model.onnx">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="deps\intfloat\multilingual-e5-small\tokenizer.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <PropertyGroup>

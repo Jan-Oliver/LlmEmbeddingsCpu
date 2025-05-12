@@ -89,7 +89,7 @@ namespace LlmEmbeddingsCpu.App
             services.AddSingleton<EmbeddingStorageService>();
             
             // Register embedding service
-            services.AddSingleton<IEmbeddingService, SentenceTransformerEmbeddingService>();
+            services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
             
             // Register scheduled processing service
             services.AddSingleton<ScheduledProcessingService>();
