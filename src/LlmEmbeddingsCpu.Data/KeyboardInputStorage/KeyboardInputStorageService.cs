@@ -106,8 +106,8 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 // Parse line format: [HH:mm:ss] Content
                 if (line.Length > 10 && line[0] == '[' && line[9] == ']')
                 {
-                    string timestampStr = line.Substring(1, 8);
-                    string logContent = line.Substring(9).Trim();
+                    string timestampStr = line[1..9];
+                    string logContent = line[10..].Trim();
 
                     if (DateTime.TryParseExact(timestampStr, timestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
                     {

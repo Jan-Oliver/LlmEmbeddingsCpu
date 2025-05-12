@@ -16,14 +16,18 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         private readonly InferenceSession _session;
         private readonly Tokenizers.DotNet.Tokenizer _tokenizer;
         private readonly int _embeddingSize;
+        private readonly int _maxSequenceLength;
         private readonly string _modelName;
         private readonly string _modelDirectory;
 
-        public IntfloatEmbeddingService(string modelName = "multilingual-e5-small", int embeddingSize = 384)
+        public IntfloatEmbeddingService(
+            string modelName = "multilingual-e5-small", 
+            int embeddingSize = 384,
+            int maxSequenceLength = 512)
         {
             _modelName = modelName;
             _embeddingSize = embeddingSize;
-
+            _maxSequenceLength = maxSequenceLength;
             // Look for models in the deps directory
             _modelDirectory = Path.Combine(GetRootDirectory(), "deps", "intfloat", modelName);
         
@@ -118,48 +122,68 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
 
         private float[] GenerateEmbeddingVector(uint[] tokens)
         {
-            // Remove padding zeros and limit sequence length
-            var inputIds = tokens.TakeWhile(t => t != 0).ToArray();
-            if (inputIds.Length == 0)
+            // Note: If we want to implement batching, we need to 
+            // - add a batch dimension to the input tensors
+            // - pad the tokens to the actualSequenceLength of the longest entry
+            
+            // 1. Apply Truncation: Limit the tokens to maxSequenceLength
+            uint[] truncatedTokens = tokens.Take(_maxSequenceLength).ToArray();
+
+            // 2. Determine the actual length of the sequence after truncation
+            int actualSequenceLength = truncatedTokens.Length;
+
+            // 3. Create input tensors with the fixed maxSequenceLength
+            // Note: 1 because we have only a single batch
+            var inputIdsTensor = new DenseTensor<long>(new[] { 1, actualSequenceLength });
+            var attentionMaskTensor = new DenseTensor<long>(new[] { 1, actualSequenceLength });
+            var tokenTypeIdsTensor = new DenseTensor<long>(new[] { 1, actualSequenceLength });
+
+
+            // 4. Fill the tensors based on the paddedTokens
+            for (int i = 0; i < actualSequenceLength; i++)
             {
-                // If all tokens are 0, take the actual tokens
-                inputIds = tokens.Where(t => t != 0).ToArray();
-                if (inputIds.Length == 0)
-                {
-                    // If still empty, use the original tokens
-                    inputIds = tokens;
-                }
+                // Input IDs are the padded token IDs
+                inputIdsTensor[0, i] = truncatedTokens[i];
+
+                // Attention mask is 1 for actual tokens, 0 for padding tokens
+                attentionMaskTensor[0, i] = 1;
+
+                // Token type IDs are 0 for single-sentence embeddings
+                tokenTypeIdsTensor[0, i] = 0;
             }
             
-            int seqLength = inputIds.Length;
-            
-            // Create input tensors
-            var inputIdsTensor = new DenseTensor<long>(new[] { 1, seqLength });
-            var attentionMaskTensor = new DenseTensor<long>(new[] { 1, seqLength });
-            var tokenTypeIdsTensor = new DenseTensor<long>(new[] { 1, seqLength });
-            
-            // Fill the tensors
-            for (int i = 0; i < seqLength; i++)
-            {
-                inputIdsTensor[0, i] = inputIds[i];
-                attentionMaskTensor[0, i] = 1; // Set attention mask to 1 for non-padding tokens
-                tokenTypeIdsTensor[0, i] = 0;  // Token type IDs (all zeros for sentence embeddings)
-            }
-            
-            // Create input tensor dictionary
+            // Print tensor contents for debugging
+            Console.WriteLine("inputIdsTensor contents:");
+            Console.WriteLine(inputIdsTensor.ToString());
+            Console.WriteLine("\nattentionMaskTensor contents:");
+            Console.WriteLine(attentionMaskTensor.ToString());
+            Console.WriteLine("\ntokenTypeIdsTensor contents:");
+            Console.WriteLine(tokenTypeIdsTensor.ToString());
+
+            // 5. Create input tensor dictionary
             var inputs = new List<NamedOnnxValue>
             {
                 NamedOnnxValue.CreateFromTensor("input_ids", inputIdsTensor),
                 NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor),
                 NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor)
             };
+
+            // 6. Run inference
+            IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs;
+            try
+            {
+                outputs = _session.Run(inputs);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during inference: {ex.Message}");
+                // Return a zero vector as fallback
+                return new float[_embeddingSize];
+            }
             
             try
             {
-                // Run inference
-                using var outputs = _session.Run(inputs);
-                
-                // Get the model output tensor
+                // 7. Get the model output tensor
                 DisposableNamedOnnxValue outputValue = outputs.First();
                 var tensor = outputValue.AsTensor<float>();
                 
@@ -167,7 +191,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 if (dims.Length == 3)
                 {
                     // Apply mean pooling over sequence dimension
-                    float[] embedding = MeanPooling(tensor, attentionMaskTensor, seqLength, _embeddingSize);
+                    float[] embedding = MeanPooling(tensor, attentionMaskTensor, actualSequenceLength, _embeddingSize);
                     
                     // Apply L2 normalization
                     NormalizeL2(embedding);
@@ -185,6 +209,10 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 Console.WriteLine($"Error during inference: {ex.Message}");
                 // Return a zero vector as fallback
                 return new float[_embeddingSize];
+            }
+            finally
+            {
+                outputs.Dispose();
             }
         }
         

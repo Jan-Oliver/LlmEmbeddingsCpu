@@ -22,7 +22,7 @@ namespace LlmEmbeddingsCpu.App
         static void Main(string[] args)
         {
             // Parse command line arguments
-            bool processNow = true;
+            bool processNow = false;
             string logDir = "logs";
             
             // Configure services
@@ -61,7 +61,8 @@ namespace LlmEmbeddingsCpu.App
             mouseTracker.StartTracking();
             
             // Schedule daily processing at midnight
-            scheduledProcessor.ScheduleProcessingAsync(new TimeSpan(0, 0, 0));
+            // Today in 5 minutes
+            scheduledProcessor.ScheduleProcessingAsync(DateTime.Now.AddMinutes(5).TimeOfDay);
             
             Console.WriteLine("Input tracking and scheduled processing started. Press Enter to exit.");
             
