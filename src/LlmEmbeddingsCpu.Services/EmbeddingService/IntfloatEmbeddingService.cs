@@ -81,8 +81,8 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
 
             return await Task.Run(() =>
             {
-                // Preprocess text - normalize, remove extra whitespace
-                text = NormalizeText(text);
+                // Preprocess text - normalize, remove extra whitespace, add prefix
+                text = PreprocessText(text);
 
                 // Tokenize
                 var tokens = _tokenizer.Encode(text);
@@ -113,10 +113,14 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             return embeddings;
         }
 
-        private static string NormalizeText(string text)
+        private static string PreprocessText(string text)
         {
             // Remove excess whitespace
             text = Regex.Replace(text, @"\s+", " ").Trim();
+            
+            // Add prefix
+            text = "query: " + text;
+            
             return text;
         }
 
