@@ -6,9 +6,9 @@ using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.MouseInputStorage;
 
-namespace LlmEmbeddingsCpu.Services.InputTracking
+namespace LlmEmbeddingsCpu.Services.MouseMonitor
 {
-    public class MouseMonitorService(MouseInputStorageService repository) : IInputTrackingService
+    public class MouseMonitorService(MouseInputStorageService repository)
     {
         private IMouseEvents? _globalHook;
         private readonly MouseInputStorageService _repository = repository;

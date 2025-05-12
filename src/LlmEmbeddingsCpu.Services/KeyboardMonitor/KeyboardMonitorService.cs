@@ -5,9 +5,9 @@ using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
-namespace LlmEmbeddingsCpu.Services.InputTracking
+namespace LlmEmbeddingsCpu.Services.KeyboardMonitor
 {
-    public class KeyboardMonitorService : IInputTrackingService
+    public class KeyboardMonitorService
     {
         private IKeyboardEvents? _globalHook;
         private readonly KeyboardInputStorageService _repository;

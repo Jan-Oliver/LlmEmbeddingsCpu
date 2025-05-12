@@ -5,7 +5,8 @@ using LlmEmbeddingsCpu.Data.FileStorage;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
 using LlmEmbeddingsCpu.Data.MouseInputStorage;
 using LlmEmbeddingsCpu.Data.EmbeddingStorage;
-using LlmEmbeddingsCpu.Services.InputTracking;
+using LlmEmbeddingsCpu.Services.KeyboardMonitor;
+using LlmEmbeddingsCpu.Services.MouseMonitor;
 using LlmEmbeddingsCpu.Services.EmbeddingService;
 using LlmEmbeddingsCpu.Services.BackgroundProcessing;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +32,7 @@ namespace LlmEmbeddingsCpu.App
             {
                 // Run just the processing if --process-now flag is provided
                 Console.WriteLine("Running one-time processing...");
-                var processor = serviceProvider.GetRequiredService<IScheduledProcessingService>();
+                var processor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
                 processor.ProcessNowAsync().Wait();
                 Console.WriteLine("Processing complete.");
                 return;
@@ -42,7 +43,7 @@ namespace LlmEmbeddingsCpu.App
             var mouseTracker = serviceProvider.GetRequiredService<MouseMonitorService>();
             
             // Get the scheduled service
-            var scheduledProcessor = serviceProvider.GetRequiredService<IScheduledProcessingService>();
+            var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
             
             // Subscribe to events
             keyboardTracker.TextCaptured += (sender, text) =>
@@ -60,7 +61,7 @@ namespace LlmEmbeddingsCpu.App
             mouseTracker.StartTracking();
             
             // Schedule daily processing at midnight
-            scheduledProcessor.ScheduleProcessingAsync(new TimeSpan(0, 0, 0)).Wait();
+            scheduledProcessor.ScheduleProcessingAsync(new TimeSpan(0, 0, 0));
             
             Console.WriteLine("Input tracking and scheduled processing started. Press Enter to exit.");
             
@@ -87,10 +88,10 @@ namespace LlmEmbeddingsCpu.App
             services.AddSingleton<EmbeddingStorageService>();
             
             // Register embedding service
-            services.AddSingleton<IEmbeddingService, EmbeddingService>();
+            services.AddSingleton<IEmbeddingService, SentenceTransformerEmbeddingService>();
             
             // Register scheduled processing service
-            services.AddSingleton<IScheduledProcessingService, ScheduledProcessingService>();
+            services.AddSingleton<ScheduledProcessingService>();
             
             // Register input tracking services by concrete type
             services.AddSingleton<KeyboardMonitorService>();
