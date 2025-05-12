@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\LlmEmbeddingsCpu.Core\LlmEmbeddingsCpu.Core.csproj" />
     <ProjectReference Include="..\LlmEmbeddingsCpu.Common\LlmEmbeddingsCpu.Common.csproj" />
+    <ProjectReference Include="..\LlmEmbeddingsCpu.Data\LlmEmbeddingsCpu.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -81,7 +81,7 @@ namespace LlmEmbeddingsCpu.App
             services.AddLogging(configure => configure.AddConsole());
             
             // Register storage services
-            services.AddSingleton<FileStorageService>(provider => new FileStorageService(logDir));
+            services.AddSingleton<FileStorageService>(provider => new(logDir));
             services.AddSingleton<KeyboardInputStorageService>();
             services.AddSingleton<MouseInputStorageService>();
             services.AddSingleton<EmbeddingStorageService>();

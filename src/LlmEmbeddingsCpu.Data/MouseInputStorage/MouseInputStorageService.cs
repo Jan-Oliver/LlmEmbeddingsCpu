@@ -1,3 +1,4 @@
+using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.FileStorage;
 
@@ -17,7 +18,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         public async Task SaveLogAsync(MouseInputLog log)
         {
             string fileName = GetCurrentFileName();
-            string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content}";
+            string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content.X}|{log.Content.Y}|{(int)log.Content.Button}|{log.Content.Clicks}|{log.Content.Delta}";
             
             Console.WriteLine($"Logging to {fileName}: {formattedLog}");
             
@@ -75,7 +76,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                     return logs;
                 }
 
-                var mouseLogs = ParseLogsFromContent(content);
+                var mouseLogs = ParseLogsFromContent(content, date);
                 logs.AddRange(mouseLogs);            
                 
                 return logs;
@@ -86,7 +87,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             }
         }
 
-        private static IEnumerable<MouseInputLog> ParseLogsFromContent(string content)
+        private static IEnumerable<MouseInputLog> ParseLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
@@ -94,25 +95,83 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
-                // Parse line format: [HH:mm:ss] Content
-                if (line.Length > 10 && line[0] == '[' && line[9] == ']')
+                MouseInputLog? log = null;
+                try
                 {
-                    string timestampStr = line.Substring(1, 8);
-                    string logContent = line.Substring(9).Trim();
+                    // Expected line format: [HH:mm:ss] X|Y|Button|Clicks|Delta
+                    const string timestampFormat = "HH:mm:ss";
+                    const int timestampLength = 8; // "HH:mm:ss".Length
+                    const int expectedParts = 5; // X, Y, Button, Clicks, Delta
 
-                    if (DateTime.TryParse(timestampStr, out DateTime timestamp))
+                    // Basic validation for line structure
+                    if (line.Length < timestampLength || line[0] != '[' || line[timestampLength + 1] != ']')
                     {
-                        yield return new MouseInputLog
+                        Console.WriteLine($"Skipping malformed log line (structure): {line}");
+                        continue;
+                    }
+
+                    string timestampStr = line.Substring(1, timestampLength); // Extract "HH:mm:ss"
+                    string logContent = line.Substring(timestampLength + 2).Trim(); // Extract content after "] "
+
+                    // Parse time part from the log line
+                    if (DateTime.TryParseExact(timestampStr, timestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
+                    {
+                        // Combine the date from the filename (passed as fileDate) with the time from the log line
+                        DateTime fullTimestamp = fileDate.Date.Add(timestamp.TimeOfDay);
+
+                        // Parse content parts (X, Y, Button, Clicks, Delta)
+                        var parts = logContent.Split('|');
+                        if (parts.Length == expectedParts)
                         {
-                            Content = logContent,
-                            Timestamp = timestamp,
-                        };
+                            // Attempt to parse each part as an integer
+                            if (int.TryParse(parts[0], out int x) &&
+                                int.TryParse(parts[1], out int y) &&
+                                int.TryParse(parts[2], out int buttonInt) &&
+                                int.TryParse(parts[3], out int clicks) &&
+                                int.TryParse(parts[4], out int delta))
+                            {
+                                // Validate and convert integer button value back to MouseButtons enum
+                                if (Enum.IsDefined(typeof(MouseButtons), buttonInt))
+                                {
+                                    MouseButtons button = (MouseButtons)buttonInt;
+                                    MouseEventArgs mouseArgs = new MouseEventArgs(button, clicks, x, y, delta);
+                                    log = new MouseInputLog
+                                    {
+                                        Timestamp = fullTimestamp,
+                                        Content = mouseArgs
+                                    };
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"Skipping log line with invalid Button value '{parts[2]}': {line}");
+                                }
+                            }
+                            else
+                            {
+                                 Console.WriteLine($"Skipping log line with invalid integer format in content '{logContent}': {line}");
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Skipping log line with incorrect number of content parts ({parts.Length} instead of {expectedParts}) '{logContent}': {line}");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Skipping log line with invalid timestamp format '{timestampStr}': {line}");
                     }
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error parsing log line '{line}': {ex.Message}");
+                }
+
+                if (log != null)
+                    yield return log;
             }
         }
 
-        public async Task MarkFileAsDeleted(DateTime date)
+        public void MarkFileAsDeleted(DateTime date)
         {
             try
             {

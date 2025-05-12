@@ -1,3 +1,4 @@
+using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
 
 using LlmEmbeddingsCpu.Data.FileStorage;
@@ -81,7 +82,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                     return logs;
                 }
 
-                var keyboardLogs = ParseKeyboardLogsFromContent(content);
+                var keyboardLogs = ParseKeyboardLogsFromContent(content, date);
                 logs.AddRange(keyboardLogs);
 
                 return logs;
@@ -93,11 +94,12 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
         // Parse the logs from the content.
-        private static IEnumerable<KeyboardInputLog> ParseKeyboardLogsFromContent(string content)
+        private static IEnumerable<KeyboardInputLog> ParseKeyboardLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
-
+            
+            const string timestampFormat = "HH:mm:ss";
             var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
             {
@@ -107,7 +109,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                     string timestampStr = line.Substring(1, 8);
                     string logContent = line.Substring(9).Trim();
 
-                    if (DateTime.TryParse(timestampStr, out DateTime timestamp))
+                    if (DateTime.TryParseExact(timestampStr, timestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
                     {
                         yield return new KeyboardInputLog
                         {
