@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.Windows.Automation;
 using System.Threading;
 using LlmEmbeddingsCpu.Core.Models;
+using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+
 namespace LlmEmbeddingsCpu.Services.WindowMonitor
 {
     public class WindowMonitorrService : IDisposable
@@ -37,10 +39,13 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
 
         public event EventHandler<ActiveWindowLog>? ActiveWindowChanged;
 
-        public WindowMonitorrService()
+        private readonly WindowMonitorStorageService _windowMonitorStorageService;
+
+        public WindowMonitorrService(WindowMonitorStorageService windowMonitorStorageService)
         {
             // Keep the delegate instance to prevent it from being garbage collected
             _eventDelegate = new WinEventDelegate(WinEventProc);
+            _windowMonitorStorageService = windowMonitorStorageService;
         }
 
         public void StartTracking()
@@ -87,6 +92,26 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                 try
                 {
                     var windowInfo = GetActiveWindowInfo(hwnd);
+
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            if (windowInfo != null)
+                            {
+                                await _windowMonitorStorageService.SaveLogAsync(windowInfo);
+                                // Optional: Log success
+                                Console.WriteLine($"Successfully saved log for: {windowInfo.WindowTitle}");
+                            }
+                        }
+                        catch (Exception storageEx)
+                        {
+                            // Handle or log exceptions that occur during the storage process
+                            Console.Error.WriteLine($"Error during storage operation: {storageEx.Message}");
+                            // You might want more sophisticated logging here
+                        }
+                    });
+
                     ActiveWindowChanged?.Invoke(this, windowInfo);
                 }
                 catch (Exception ex)

@@ -8,10 +8,10 @@ using LlmEmbeddingsCpu.Data.MouseInputStorage;
 
 namespace LlmEmbeddingsCpu.Services.MouseMonitor
 {
-    public class MouseMonitorService(MouseInputStorageService repository)
+    public class MouseMonitorService(MouseInputStorageService mouseInputStorageService)
     {
         private IMouseEvents? _globalHook;
-        private readonly MouseInputStorageService _repository = repository;
+        private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
         public event EventHandler<string>? TextCaptured;
 
         public void StartTracking()
@@ -42,7 +42,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
                 Timestamp = DateTime.Now
             };
 
-            await _repository.SaveLogAsync(log);
+            await _mouseInputStorageService.SaveLogAsync(log);
             
             // Log the event
             Console.WriteLine($"Mouse clicked at {e.X}, {e.Y}");

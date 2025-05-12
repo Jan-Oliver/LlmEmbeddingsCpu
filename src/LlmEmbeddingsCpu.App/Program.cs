@@ -10,10 +10,10 @@ using LlmEmbeddingsCpu.Services.MouseMonitor;
 using LlmEmbeddingsCpu.Services.EmbeddingService;
 using LlmEmbeddingsCpu.Services.BackgroundProcessing;
 using LlmEmbeddingsCpu.Services.WindowMonitor;
+using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Windows.Forms;
-using System.ComponentModel.Design;
 
 namespace LlmEmbeddingsCpu.App
 {
@@ -101,6 +101,7 @@ namespace LlmEmbeddingsCpu.App
             services.AddSingleton<FileStorageService>(provider => new(logDir));
             services.AddSingleton<KeyboardInputStorageService>();
             services.AddSingleton<MouseInputStorageService>();
+            services.AddSingleton<WindowMonitorStorageService>();
             services.AddSingleton<EmbeddingStorageService>();
             
             // Register embedding service
