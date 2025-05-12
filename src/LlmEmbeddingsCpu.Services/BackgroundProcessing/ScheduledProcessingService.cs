@@ -109,7 +109,7 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     Console.WriteLine($"Generated {embeddings.Count} embeddings");
                     
                     // Save embeddings
-                    await _embeddingStorageService.SaveEmbeddingsAsync(embeddings);
+                    await _embeddingStorageService.SaveEmbeddingsAsync(embeddings, dateToProcess.ToString("yyyy-MM-dd"));
                     
                     // Archive logs for this date
                     ArchiveProcessedLogsAsync(dateToProcess);

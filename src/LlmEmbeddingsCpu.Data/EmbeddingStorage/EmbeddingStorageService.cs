@@ -10,14 +10,14 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _embeddingDirectoryName = "embeddings";
 
-        public async Task SaveEmbeddingAsync(Embedding embedding)
+        public async Task SaveEmbeddingAsync(Embedding embedding, string date)
         {
             try
             {
                 ArgumentNullException.ThrowIfNull(embedding);
 
                 // Create directory path and ensure it exists
-                string datePath = Path.Combine(_embeddingDirectoryName, embedding.CreatedAt.ToString("yyyy-MM-dd"));
+                string datePath = Path.Combine(_embeddingDirectoryName, date);
                 _fileStorageService.EnsureDirectoryExists(datePath);
 
                 // Create file name using Path.Combine for proper path handling
@@ -35,7 +35,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
         }
 
-        public async Task SaveEmbeddingsAsync(IEnumerable<Embedding> embeddings)
+        public async Task SaveEmbeddingsAsync(IEnumerable<Embedding> embeddings, string date)
         {
             try
             {
@@ -46,7 +46,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                 {
                     try
                     {
-                        await SaveEmbeddingAsync(embedding);
+                        await SaveEmbeddingAsync(embedding, date);
                     }
                     catch (Exception ex)
                     {
