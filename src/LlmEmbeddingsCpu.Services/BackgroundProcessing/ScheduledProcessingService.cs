@@ -1,44 +1,44 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Timers;
 using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Core.Enums;
+using LlmEmbeddingsCpu.Data.EmbeddingStorage;
+using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.MouseInputStorage;
 
 
 namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
 {
-    public class ScheduledProcessingService : IScheduledProcessingService, IDisposable
+    public class ScheduledProcessingService: IDisposable
     {
-        private readonly IFileStorageService _fileStorageService;
         private readonly IEmbeddingService _embeddingService;
-        private readonly IEmbeddingRepository _embeddingRepository;
-        private readonly IInputLogRepository _inputLogRepository;
-        private System.Timers.Timer _timer;
+        private readonly FileStorageService _fileStorageService;
+        private readonly EmbeddingStorageService _embeddingStorageService;
+        private readonly KeyboardInputStorageService _keyboardInputStorageService;
+        private readonly MouseInputStorageService _mouseInputStorageService;
+        private readonly System.Timers.Timer _timer;
         private TimeSpan _scheduleTime;
         private readonly string _processedMarkerFile = "processed_dates.txt";
-        private readonly SemaphoreSlim _processingLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _processingLock = new(1, 1);
 
         public ScheduledProcessingService(
-            IFileStorageService fileStorageService, 
+            FileStorageService fileStorageService, 
             IEmbeddingService embeddingService,
-            IEmbeddingRepository embeddingRepository,
-            IInputLogRepository inputLogRepository)
+            EmbeddingStorageService embeddingStorageService,
+            KeyboardInputStorageService keyboardInputStorageService,
+            MouseInputStorageService mouseInputStorageService)
         {
             _fileStorageService = fileStorageService;
             _embeddingService = embeddingService;
-            _embeddingRepository = embeddingRepository;
-            _inputLogRepository = inputLogRepository;
+            _embeddingStorageService = embeddingStorageService;
+            _keyboardInputStorageService = keyboardInputStorageService;
+            _mouseInputStorageService = mouseInputStorageService;
             _timer = new System.Timers.Timer(60000); // Check every minute
             _timer.Elapsed += OnTimerElapsed;
         }
 
-        public async Task ScheduleProcessingAsync(TimeSpan timeOfDay)
+        public void ScheduleProcessingAsync(TimeSpan timeOfDay)
         {
             _scheduleTime = timeOfDay;
             _timer.Start();
@@ -56,7 +56,7 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             Console.WriteLine($"First run in {timeUntilFirstRun:hh\\:mm\\:ss}");
         }
 
-        private void OnTimerElapsed(object sender, ElapsedEventArgs e)
+        private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
         {
             // Check if it's time to process
             var now = DateTime.Now.TimeOfDay;
@@ -78,7 +78,7 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                 Console.WriteLine("Starting text processing...");
                 
                 // Get all dates that need processing
-                var datesToProcess = _inputLogRepository.GetDatesToProcess();
+                var datesToProcess = _keyboardInputStorageService.GetDatesToProcess();
                 
                 Console.WriteLine($"Found {datesToProcess.Count()} dates to process");
                 
@@ -87,10 +87,8 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     Console.WriteLine($"Processing date: {dateToProcess:yyyy-MM-dd}");
                     
                     // Get logs for this date
-                    var logs = await _inputLogRepository.GetPreviousLogsAsync(dateToProcess);
-                    var keyboardLogs = logs.Where(log => log.Type == InputType.Keyboard)
-                                         .Select(log => log.Content)
-                                         .ToList();
+                    var logs = await _keyboardInputStorageService.GetPreviousLogsAsync(dateToProcess);
+                    var keyboardLogs = logs.Select(log => log.Content).ToList();
                     
                     Console.WriteLine($"Processing {keyboardLogs.Count} keyboard logs");
                     
@@ -111,10 +109,10 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     Console.WriteLine($"Generated {embeddings.Count} embeddings");
                     
                     // Save embeddings
-                    await _embeddingRepository.SaveEmbeddingsAsync(embeddings);
+                    await _embeddingStorageService.SaveEmbeddingsAsync(embeddings);
                     
                     // Archive logs for this date
-                    await ArchiveProcessedLogsAsync(dateToProcess);
+                    ArchiveProcessedLogsAsync(dateToProcess);
                     
                     Console.WriteLine($"Completed processing for date {dateToProcess:yyyy-MM-dd}");
                 }
@@ -132,11 +130,11 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
-        private async Task ArchiveProcessedLogsAsync(DateTime date)
+        private void ArchiveProcessedLogsAsync(DateTime date)
         {
             try
             {
-                _inputLogRepository.MarkFileAsDeleted(date);
+                _keyboardInputStorageService.MarkFileAsDeleted(date);
                 Console.WriteLine($"Archived logs for {date:yyyy-MM-dd}");
             }
             catch (Exception ex)
@@ -155,6 +153,8 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
         {
             _timer?.Dispose();
             _processingLock?.Dispose();
+            // Prevents other classes from calling Dispose() on this instance
+            GC.SuppressFinalize(this);
         }
     }
 }
