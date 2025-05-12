@@ -9,6 +9,7 @@ using LlmEmbeddingsCpu.Services.KeyboardMonitor;
 using LlmEmbeddingsCpu.Services.MouseMonitor;
 using LlmEmbeddingsCpu.Services.EmbeddingService;
 using LlmEmbeddingsCpu.Services.BackgroundProcessing;
+using LlmEmbeddingsCpu.Services.WindowMonitor;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Windows.Forms;
@@ -41,7 +42,8 @@ namespace LlmEmbeddingsCpu.App
             // Get the tracking services by concrete type
             var keyboardTracker = serviceProvider.GetRequiredService<KeyboardMonitorService>();
             var mouseTracker = serviceProvider.GetRequiredService<MouseMonitorService>();
-            
+            var windowTracker = serviceProvider.GetRequiredService<WindowMonitorrService>();
+
             // Get the scheduled service
             var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
             
@@ -55,23 +57,36 @@ namespace LlmEmbeddingsCpu.App
             {
                 Console.WriteLine($"Mouse metrics: {text}");
             };
+
+            windowTracker.ActiveWindowChanged += (sender, e) =>
+            {
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.WriteLine("WINDOW CHANGED:");
+                Console.WriteLine(e.WindowTitle);
+                Console.WriteLine(e.ProcessName);
+                Console.WriteLine(e.WindowHandle);
+                Console.ResetColor();
+            };
             
             // Start tracking
             keyboardTracker.StartTracking();
             mouseTracker.StartTracking();
-            
+            windowTracker.StartTracking();
+
             // Schedule daily processing at midnight
-            // Today in 5 minutes
-            scheduledProcessor.ScheduleProcessingAsync(DateTime.Now.AddMinutes(5).TimeOfDay);
+            // at 12:00am
+            scheduledProcessor.ScheduleProcessingAsync(TimeSpan.FromHours(0));
             
             Console.WriteLine("Input tracking and scheduled processing started. Press Enter to exit.");
             
             // Use Application.Run() for the Windows Forms message loop
             Application.Run();
+            //Console.ReadLine();
             
             // Stop tracking
             keyboardTracker.StopTracking();
             mouseTracker.StopTracking();
+            windowTracker.StopTracking();
             scheduledProcessor.StopScheduledProcessingAsync().Wait();
         }
         
@@ -97,6 +112,7 @@ namespace LlmEmbeddingsCpu.App
             // Register input tracking services by concrete type
             services.AddSingleton<KeyboardMonitorService>();
             services.AddSingleton<MouseMonitorService>();
+            services.AddSingleton<WindowMonitorrService>();
             
             return services.BuildServiceProvider();
         }

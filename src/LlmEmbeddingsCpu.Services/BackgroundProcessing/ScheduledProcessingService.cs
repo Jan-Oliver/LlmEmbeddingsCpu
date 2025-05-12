@@ -19,7 +19,6 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
         private readonly MouseInputStorageService _mouseInputStorageService;
         private readonly System.Timers.Timer _timer;
         private TimeSpan _scheduleTime;
-        private readonly string _processedMarkerFile = "processed_dates.txt";
         private readonly SemaphoreSlim _processingLock = new(1, 1);
 
         public ScheduledProcessingService(
