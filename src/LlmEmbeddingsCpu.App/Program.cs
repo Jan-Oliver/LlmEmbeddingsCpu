@@ -2,7 +2,9 @@
 using System.Threading.Tasks;
 using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Data.FileStorage;
-using LlmEmbeddingsCpu.Data.Repositories;
+using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.MouseInputStorage;
+using LlmEmbeddingsCpu.Data.EmbeddingStorage;
 using LlmEmbeddingsCpu.Services.InputTracking;
 using LlmEmbeddingsCpu.Services.EmbeddingService;
 using LlmEmbeddingsCpu.Services.BackgroundProcessing;
@@ -79,9 +81,10 @@ namespace LlmEmbeddingsCpu.App
             services.AddLogging(configure => configure.AddConsole());
             
             // Register storage services
-            services.AddSingleton<IFileStorageService>(provider => new FileStorageService(logDir));
-            services.AddSingleton<IInputLogRepository, InputLogRepository>();
-            services.AddSingleton<IEmbeddingRepository, EmbeddingRepository>();
+            services.AddSingleton<FileStorageService>(provider => new FileStorageService(logDir));
+            services.AddSingleton<KeyboardInputStorageService>();
+            services.AddSingleton<MouseInputStorageService>();
+            services.AddSingleton<EmbeddingStorageService>();
             
             // Register embedding service
             services.AddSingleton<IEmbeddingService, EmbeddingService>();

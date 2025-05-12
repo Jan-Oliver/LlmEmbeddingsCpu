@@ -2,7 +2,7 @@ using LlmEmbeddingsCpu.Core.Models;
 
 using LlmEmbeddingsCpu.Data.FileStorage;
 
-namespace LlmEmbeddingsCpu.Data.KeyInputStorage
+namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 {
     public class KeyboardInputStorageService(FileStorageService fileStorageService)
     {
