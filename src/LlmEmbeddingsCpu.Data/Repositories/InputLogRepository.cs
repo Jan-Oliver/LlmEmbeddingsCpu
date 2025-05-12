@@ -1,22 +1,22 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Core.Enums;
 using Newtonsoft.Json;
 using System.Linq;
 using System.IO;
+using LlmEmbeddingsCpu.Data.FileStorage;
 
 namespace LlmEmbeddingsCpu.Data.Repositories
 {
-    public class InputLogRepository : IInputLogRepository
+    public class InputLogRepository
     {
-        private readonly IFileStorageService _fileStorageService;
+        private readonly FileStorageService _fileStorageService;
         private readonly string _keyboardLogBaseFileName;
         private readonly string _mouseLogBaseFileName;
 
-        public InputLogRepository(IFileStorageService fileStorageService)
+        public InputLogRepository(FileStorageService fileStorageService)
         {
             _fileStorageService = fileStorageService;
             _keyboardLogBaseFileName = "keyboard_logs";

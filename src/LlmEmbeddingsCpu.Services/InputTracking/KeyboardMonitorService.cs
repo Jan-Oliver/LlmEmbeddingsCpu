@@ -15,9 +15,7 @@ namespace LlmEmbeddingsCpu.Services.InputTracking
     {
         private IKeyboardEvents? _globalHook;
         private readonly IInputLogRepository _repository;
-        private StringBuilder _currentWord = new StringBuilder();
-        private char? _lastTerminator = null;
-
+        private readonly StringBuilder _currentWord = new();
         public event EventHandler<string>? TextCaptured;
 
         public KeyboardMonitorService(IInputLogRepository repository)

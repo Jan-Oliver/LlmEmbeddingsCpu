@@ -3,22 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using Newtonsoft.Json;
+using LlmEmbeddingsCpu.Data.FileStorage;
 
 namespace LlmEmbeddingsCpu.Data.Repositories
 {
-    public class EmbeddingRepository : IEmbeddingRepository
+    public class EmbeddingRepository(FileStorageService fileStorageService)
     {
-        private readonly IFileStorageService _fileStorageService;
-        private readonly string _embeddingDirectoryName;
-
-        public EmbeddingRepository(IFileStorageService fileStorageService)
-        {
-            _fileStorageService = fileStorageService;
-            _embeddingDirectoryName = "embeddings";
-        }
+        private readonly FileStorageService _fileStorageService = fileStorageService;
+        private readonly string _embeddingDirectoryName = "embeddings";
 
         public async Task SaveEmbeddingAsync(Embedding embedding)
         {
