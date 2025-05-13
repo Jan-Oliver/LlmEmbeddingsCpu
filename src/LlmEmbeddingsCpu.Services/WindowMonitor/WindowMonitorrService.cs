@@ -1,11 +1,9 @@
-using System;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-using System.Windows.Automation;
-using System.Threading;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.WindowMonitor
 {
@@ -40,9 +38,12 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         public event EventHandler<ActiveWindowLog>? ActiveWindowChanged;
 
         private readonly WindowMonitorStorageService _windowMonitorStorageService;
-
-        public WindowMonitorrService(WindowMonitorStorageService windowMonitorStorageService)
+        private readonly ILogger<WindowMonitorrService> _logger;
+        public WindowMonitorrService(
+            ILogger<WindowMonitorrService> logger,
+            WindowMonitorStorageService windowMonitorStorageService)
         {
+            _logger = logger;
             // Keep the delegate instance to prevent it from being garbage collected
             _eventDelegate = new WinEventDelegate(WinEventProc);
             _windowMonitorStorageService = windowMonitorStorageService;
@@ -72,6 +73,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             // For simplicity here, we'll rely on the first window change event.
             // Or you could call a method like this:
             // TriggerInitialEvent();
+            _logger.LogInformation("Window tracking started...");
         }
 
         public void StopTracking()
@@ -81,6 +83,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                 UnhookWinEvent(_hookHandle);
                 _hookHandle = IntPtr.Zero;
             }
+            _logger.LogInformation("Window tracking stopped.");
         }
 
         private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
@@ -101,13 +104,13 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                             {
                                 await _windowMonitorStorageService.SaveLogAsync(windowInfo);
                                 // Optional: Log success
-                                Console.WriteLine($"Successfully saved log for: {windowInfo.WindowTitle}");
+                                _logger.LogInformation("Successfully saved log for: {WindowTitle}", windowInfo.WindowTitle);
                             }
                         }
                         catch (Exception storageEx)
                         {
                             // Handle or log exceptions that occur during the storage process
-                            Console.Error.WriteLine($"Error during storage operation: {storageEx.Message}");
+                            _logger.LogError("Error during storage operation: {ErrorMessage}", storageEx.Message);
                             // You might want more sophisticated logging here
                         }
                     });
@@ -117,7 +120,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                 catch (Exception ex)
                 {
                     // Log or handle exceptions during info gathering or event invocation
-                    Console.Error.WriteLine($"Error in WinEventProc: {ex.Message}");
+                    _logger.LogError("Error in WinEventProc: {ErrorMessage}", ex.Message);
                 }
             }
         }
@@ -163,7 +166,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             }
             catch (Exception ex) // Other potential exceptions
             {
-                 Console.Error.WriteLine($"Error getting process info for PID {processId}: {ex.Message}");
+                Console.Error.WriteLine($"Error getting process info for PID {processId}: {ex.Message}");
             }
 
             return new ActiveWindowLog

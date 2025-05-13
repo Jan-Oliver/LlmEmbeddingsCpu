@@ -1,13 +1,17 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.FileStorage;
+using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.MouseInputStorage
 {
-    public class MouseInputStorageService(FileStorageService fileStorageService)
+    public class MouseInputStorageService(
+        FileStorageService fileStorageService,
+        ILogger<MouseInputStorageService> logger)
     {
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _mouseLogBaseFileName = "mouse_logs";
+        private readonly ILogger<MouseInputStorageService> _logger = logger;
 
         private string GetCurrentFileName()
         {
@@ -20,7 +24,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             string fileName = GetCurrentFileName();
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content.X}|{log.Content.Y}|{(int)log.Content.Button}|{log.Content.Clicks}|{log.Content.Delta}";
             
-            Console.WriteLine($"Logging to {fileName}: {formattedLog}");
+            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
@@ -68,11 +72,11 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                 var logs = new List<MouseInputLog>();
                 
                
-                Console.WriteLine($"Reading mouse logs for: {date:yyyy-MM-dd}");
+                _logger.LogInformation("Reading mouse logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(mouseInputFileName);
                 if (string.IsNullOrEmpty(content))
                 {
-                    Console.WriteLine($"No mouse logs found for: {date:yyyy-MM-dd}");
+                    _logger.LogInformation("No mouse logs found for: {Date}", date);
                     return logs;
                 }
 
@@ -83,11 +87,12 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
+                _logger.LogError("Error retrieving logs: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException($"Error retrieving logs: {ex.Message}", ex);
             }
         }
 
-        private static IEnumerable<MouseInputLog> ParseLogsFromContent(string content, DateTime fileDate)
+        private IEnumerable<MouseInputLog> ParseLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
@@ -106,7 +111,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                     // Basic validation for line structure
                     if (line.Length < timestampLength || line[0] != '[' || line[timestampLength + 1] != ']')
                     {
-                        Console.WriteLine($"Skipping malformed log line (structure): {line}");
+                        _logger.LogWarning("Skipping malformed log line (structure): {Line}", line);
                         continue;
                     }
 
@@ -143,27 +148,27 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                                 }
                                 else
                                 {
-                                    Console.WriteLine($"Skipping log line with invalid Button value '{parts[2]}': {line}");
+                                    _logger.LogWarning("Skipping log line with invalid Button value '{ButtonValue}': {Line}", parts[2], line);
                                 }
                             }
                             else
                             {
-                                 Console.WriteLine($"Skipping log line with invalid integer format in content '{logContent}': {line}");
+                                _logger.LogWarning("Skipping log line with invalid integer format in content '{LogContent}': {Line}", logContent, line);
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"Skipping log line with incorrect number of content parts ({parts.Length} instead of {expectedParts}) '{logContent}': {line}");
+                            _logger.LogWarning("Skipping log line with incorrect number of content parts ({ContentParts} instead of {ExpectedParts}) '{LogContent}': {Line}", parts.Length, expectedParts, logContent, line);
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"Skipping log line with invalid timestamp format '{timestampStr}': {line}");
+                        _logger.LogWarning("Skipping log line with invalid timestamp format '{TimestampStr}': {Line}", timestampStr, line);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error parsing log line '{line}': {ex.Message}");
+                    _logger.LogError("Error parsing log line '{Line}': {ErrorMessage}", line, ex.Message);
                 }
 
                 if (log != null)
@@ -181,6 +186,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
 
                 if (!mouseExists)
                 {
+                    _logger.LogError("No log files found for date: {Date}", date);
                     throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
                 }
 
@@ -188,6 +194,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
+                _logger.LogError("Error marking files as deleted: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException($"Error marking files as deleted: {ex.Message}", ex);
             }
         }
@@ -214,10 +221,11 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                 // Move the file to the deleted directory
                 _fileStorageService.RenameFile(fileName, newFileName);
                 
-                Console.WriteLine($"Successfully moved {fileName} to {newFileName}");
+                _logger.LogInformation("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
             }
             catch (Exception ex)
             {
+                _logger.LogError("Error moving file {FileName} to deleted directory: {ErrorMessage}", fileName, ex.Message);
                 throw new InvalidOperationException($"Error moving file {fileName} to deleted directory: {ex.Message}", ex);
             }
         }

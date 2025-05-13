@@ -1,6 +1,4 @@
-﻿using System;
-using System.Threading.Tasks;
-using LlmEmbeddingsCpu.Core.Interfaces;
+﻿using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Data.FileStorage;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
 using LlmEmbeddingsCpu.Data.MouseInputStorage;
@@ -13,6 +11,7 @@ using LlmEmbeddingsCpu.Services.WindowMonitor;
 using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System.Windows.Forms;
 
 namespace LlmEmbeddingsCpu.App
@@ -25,20 +24,31 @@ namespace LlmEmbeddingsCpu.App
             // Parse command line arguments
             bool processNow = false;
             string logDir = "logs";
+
+            // Configure Serilog for File Logging
+            string logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, logDir);
+            Directory.CreateDirectory(logDirectory);
+            string logFilePath = Path.Combine(logDirectory, "application-.log");
+
+            Log.Logger = new LoggerConfiguration()
+                .Enrich.FromLogContext()
+                .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
+                .CreateLogger();
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) => Log.CloseAndFlush();
             
             // Configure services
             var serviceProvider = ConfigureServices(logDir);
-            
+
             if (processNow)
             {
-                // Run just the processing if --process-now flag is provided
-                Console.WriteLine("Running one-time processing...");
+                Log.Information("Running one-time processing...");
                 var processor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
                 processor.ProcessNowAsync().Wait();
-                Console.WriteLine("Processing complete.");
+                Log.Information("Processing complete.");
                 return;
             }
-            
+
             // Get the tracking services by concrete type
             var keyboardTracker = serviceProvider.GetRequiredService<KeyboardMonitorService>();
             var mouseTracker = serviceProvider.GetRequiredService<MouseMonitorService>();
@@ -46,13 +56,13 @@ namespace LlmEmbeddingsCpu.App
 
             // Get the scheduled service
             var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
-            
+
             // Subscribe to events
             keyboardTracker.TextCaptured += (sender, text) =>
             {
                 Console.WriteLine($"Keyboard captured: {text}");
             };
-            
+
             mouseTracker.TextCaptured += (sender, text) =>
             {
                 Console.WriteLine($"Mouse metrics: {text}");
@@ -77,11 +87,10 @@ namespace LlmEmbeddingsCpu.App
             // at 12:00am
             scheduledProcessor.ScheduleProcessingAsync(TimeSpan.FromHours(0));
             
-            Console.WriteLine("Input tracking and scheduled processing started. Press Enter to exit.");
+            Log.Information("Input tracking and scheduled processing started. Press Enter to exit.");
             
             // Use Application.Run() for the Windows Forms message loop
             Application.Run();
-            //Console.ReadLine();
             
             // Stop tracking
             keyboardTracker.StopTracking();
@@ -95,10 +104,15 @@ namespace LlmEmbeddingsCpu.App
             var services = new ServiceCollection();
             
             // Register logger
-            services.AddLogging(configure => configure.AddConsole());
+            services.AddLogging(configure =>
+            {
+                configure.ClearProviders();
+                configure.AddSerilog();
+                configure.SetMinimumLevel(LogLevel.Debug);
+            });
             
             // Register storage services
-            services.AddSingleton<FileStorageService>(provider => new(logDir));
+            services.AddSingleton<FileStorageService>(provider => new(logDir, provider.GetRequiredService<ILogger<FileStorageService>>()));
             services.AddSingleton<KeyboardInputStorageService>();
             services.AddSingleton<MouseInputStorageService>();
             services.AddSingleton<WindowMonitorStorageService>();

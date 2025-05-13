@@ -1,13 +1,16 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.FileStorage;
+using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
 {
-    public class WindowMonitorStorageService(FileStorageService fileStorageService)
+    public class WindowMonitorStorageService(FileStorageService fileStorageService,
+        ILogger<WindowMonitorStorageService> logger)
     {
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _windowMonitorLogBaseFileName = "window_monitor_logs";
+        private readonly ILogger<WindowMonitorStorageService> _logger = logger;
 
         private string GetCurrentFileName()
         {
@@ -20,7 +23,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
             string fileName = GetCurrentFileName();
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.WindowTitle}|{log.WindowHandle}|{log.ProcessName}";
             
-            Console.WriteLine($"Logging to {fileName}: {formattedLog}");
+            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
@@ -68,11 +71,11 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                 var logs = new List<ActiveWindowLog>();
                 
                
-                Console.WriteLine($"Reading mouse logs for: {date:yyyy-MM-dd}");
+                _logger.LogInformation("Reading mouse logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(windowMonitorFileName);
                 if (string.IsNullOrEmpty(content))
                 {
-                    Console.WriteLine($"No mouse logs found for: {date:yyyy-MM-dd}");
+                    _logger.LogInformation("No mouse logs found for: {Date}", date);
                     return logs;
                 }
 
@@ -83,11 +86,12 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
+                _logger.LogError("Error retrieving logs: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException($"Error retrieving logs: {ex.Message}", ex);
             }
         }
 
-        private static IEnumerable<ActiveWindowLog> ParseLogsFromContent(string content, DateTime fileDate)
+        private IEnumerable<ActiveWindowLog> ParseLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
@@ -106,7 +110,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                     // Basic validation for line structure
                     if (line.Length < timestampLength || line[0] != '[' || line[timestampLength + 1] != ']')
                     {
-                        Console.WriteLine($"Skipping malformed log line (structure): {line}");
+                        _logger.LogWarning("Skipping malformed log line (structure): {Line}", line);
                         continue;
                     }
 
@@ -138,22 +142,22 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                             }
                             else
                             {
-                                Console.WriteLine($"Skipping log line with invalid window handle '{parts[0]}': {line}");
+                                _logger.LogWarning("Skipping log line with invalid window handle '{WindowHandle}': {Line}", parts[0], line);
                             }
                         }
                         else
                         {
-                            Console.WriteLine($"Skipping log line with incorrect number of content parts ({parts.Length} instead of {expectedParts}) '{logContent}': {line}");
+                            _logger.LogWarning("Skipping log line with incorrect number of content parts ({ContentParts} instead of {ExpectedParts}) '{LogContent}': {Line}", parts.Length, expectedParts, logContent, line);
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"Skipping log line with invalid timestamp format '{timestampStr}': {line}");
+                        _logger.LogWarning("Skipping log line with invalid timestamp format '{TimestampStr}': {Line}", timestampStr, line);
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error parsing log line '{line}': {ex.Message}");
+                    _logger.LogError("Error parsing log line '{Line}': {ErrorMessage}", line, ex.Message);
                 }
 
                 if (log != null)

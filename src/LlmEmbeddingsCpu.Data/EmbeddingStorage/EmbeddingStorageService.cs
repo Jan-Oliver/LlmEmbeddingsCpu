@@ -1,15 +1,16 @@
 using LlmEmbeddingsCpu.Data.FileStorage;
 using LlmEmbeddingsCpu.Core.Models;
 using Newtonsoft.Json;
+using Microsoft.Extensions.Logging;
 
 
 namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
 {
-    public class EmbeddingStorageService(FileStorageService fileStorageService)
+    public class EmbeddingStorageService(FileStorageService fileStorageService, ILogger<EmbeddingStorageService> logger)
     {
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _embeddingDirectoryName = "embeddings";
-
+        private readonly ILogger<EmbeddingStorageService> _logger = logger;
         public async Task SaveEmbeddingAsync(Embedding embedding, string date)
         {
             try
@@ -31,6 +32,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
             catch (Exception ex)
             {
+                _logger.LogError("Failed to save embedding {EmbeddingId}: {ErrorMessage}", embedding?.Id, ex.Message);
                 throw new InvalidOperationException($"Failed to save embedding {embedding?.Id}: {ex.Message}", ex);
             }
         }
@@ -51,7 +53,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                     catch (Exception ex)
                     {
                         errors.Add(ex);
-                        Console.WriteLine($"Error saving embedding {embedding.Id}: {ex.Message}");
+                        _logger.LogError("Error saving embedding {EmbeddingId}: {ErrorMessage}", embedding.Id, ex.Message);
                     }
                 }
 
@@ -60,6 +62,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
             catch (Exception ex)
             {
+                _logger.LogError("Failed to save embeddings batch: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException("Failed to save embeddings batch", ex);
             }
         }
@@ -89,7 +92,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Error reading embedding file {file}: {ex.Message}");
+                        _logger.LogError("Error reading embedding file {FileName}: {ErrorMessage}", file, ex.Message);
                     }
                 }
                 
@@ -97,6 +100,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
             catch (Exception ex)
             {
+                _logger.LogError("Failed to get embeddings for date {Date}: {ErrorMessage}", date, ex.Message);
                 throw new InvalidOperationException($"Failed to get embeddings for date {date:yyyy-MM-dd}: {ex.Message}", ex);
             }
         }

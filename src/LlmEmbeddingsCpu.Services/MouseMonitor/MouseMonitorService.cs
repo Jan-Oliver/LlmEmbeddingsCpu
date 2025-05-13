@@ -1,17 +1,18 @@
 using Gma.System.MouseKeyHook;
-using System;
 using System.Windows.Forms;
-using System.Timers;
-using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.MouseInputStorage;
+using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.MouseMonitor
 {
-    public class MouseMonitorService(MouseInputStorageService mouseInputStorageService)
+    public class MouseMonitorService(
+        MouseInputStorageService mouseInputStorageService,
+        ILogger<MouseMonitorService> logger)
     {
         private IMouseEvents? _globalHook;
         private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
+        private readonly ILogger<MouseMonitorService> _logger = logger;
         public event EventHandler<string>? TextCaptured;
 
         public void StartTracking()
@@ -19,8 +20,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             // Subscribe to global mouse events
             _globalHook = Hook.GlobalEvents();
             _globalHook.MouseClick += GlobalHook_MouseClick;
-                        
-            Console.WriteLine("Mouse tracking started...");
+            _logger.LogInformation("Mouse tracking started...");
         }
         
         public void StopTracking()
@@ -30,7 +30,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
                 _globalHook.MouseClick -= GlobalHook_MouseClick;
             }
             
-            Console.WriteLine("Mouse tracking stopped.");
+            _logger.LogInformation("Mouse tracking stopped.");
         }
 
         private async void GlobalHook_MouseClick(object? sender, MouseEventArgs e)
@@ -45,7 +45,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             await _mouseInputStorageService.SaveLogAsync(log);
             
             // Log the event
-            Console.WriteLine($"Mouse clicked at {e.X}, {e.Y}");
+            _logger.LogInformation("Mouse clicked at {X}, {Y}", e.X, e.Y);
         }
     }
 }

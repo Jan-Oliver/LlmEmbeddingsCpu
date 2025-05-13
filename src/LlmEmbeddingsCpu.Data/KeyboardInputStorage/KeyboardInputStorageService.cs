@@ -1,14 +1,18 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
-
 using LlmEmbeddingsCpu.Data.FileStorage;
+using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 {
-    public class KeyboardInputStorageService(FileStorageService fileStorageService)
+    public class KeyboardInputStorageService(
+        FileStorageService fileStorageService,
+        ILogger<KeyboardInputStorageService> logger)
     {
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _keyboardLogBaseFileName = "keyboard_logs";
+
+        private readonly ILogger<KeyboardInputStorageService> _logger = logger;
 
         private string GetCurrentFileName()
         {
@@ -21,7 +25,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             string fileName = GetCurrentFileName();
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content}";
             
-            Console.WriteLine($"Logging to {fileName}: {formattedLog}");
+            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
@@ -73,12 +77,12 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 var logs = new List<KeyboardInputLog>();
                 
                 
-                Console.WriteLine($"Reading keyboard logs for: {date:yyyy-MM-dd}");
+                _logger.LogInformation("Reading keyboard logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(keyboardFileName);
 
                 if (string.IsNullOrEmpty(content))
                 {
-                    Console.WriteLine($"No keyboard logs found for: {date:yyyy-MM-dd}");
+                    _logger.LogInformation("No keyboard logs found for: {Date}", date);
                     return logs;
                 }
 
@@ -89,6 +93,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
+                _logger.LogError("Error retrieving logs: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException($"Error retrieving logs: {ex.Message}", ex);
             }
         }
@@ -132,6 +137,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 
                 if (!keyboardFileExists)
                 {
+                    _logger.LogError("No log files found for date: {Date}", date);
                     throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
                 }
 
@@ -139,6 +145,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
+                _logger.LogError("Error marking files as deleted: {ErrorMessage}", ex.Message);
                 throw new InvalidOperationException($"Error marking files as deleted: {ex.Message}", ex);
             }
         }
@@ -167,10 +174,11 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 // Move the file to the deleted directory
                 _fileStorageService.RenameFile(fileName, newFileName);
                 
-                Console.WriteLine($"Successfully moved {fileName} to {newFileName}");
+                _logger.LogInformation("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
             }
             catch (Exception ex)
             {
+                _logger.LogError("Error moving file {FileName} to deleted directory: {ErrorMessage}", fileName, ex.Message);
                 throw new InvalidOperationException($"Error moving file {fileName} to deleted directory: {ex.Message}", ex);
             }
         }

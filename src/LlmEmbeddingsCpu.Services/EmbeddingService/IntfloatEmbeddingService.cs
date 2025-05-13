@@ -1,13 +1,11 @@
-using System;
-using System.Collections.Generic;
+
 using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using LlmEmbeddingsCpu.Core.Interfaces;
-using LlmEmbeddingsCpu.Core.Models;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+
 
 namespace LlmEmbeddingsCpu.Services.EmbeddingService
 {
@@ -19,12 +17,15 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         private readonly int _maxSequenceLength;
         private readonly string _modelName;
         private readonly string _modelDirectory;
+        private readonly ILogger<IntfloatEmbeddingService> _logger;
 
         public IntfloatEmbeddingService(
+            ILogger<IntfloatEmbeddingService> logger,
             string modelName = "multilingual-e5-small", 
             int embeddingSize = 384,
             int maxSequenceLength = 512)
         {
+            _logger = logger;
             _modelName = modelName;
             _embeddingSize = embeddingSize;
             _maxSequenceLength = maxSequenceLength;
@@ -37,11 +38,13 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             // Ensure model files exist
             if (!File.Exists(modelPath))
             {
+                _logger.LogError("Model file not found at {ModelPath}", modelPath);
                 throw new FileNotFoundException($"Model file not found at {modelPath}");
             }
 
             if (!File.Exists(tokenizerPath))
             {
+                _logger.LogError("Tokenizer file not found at {TokenizerPath}", tokenizerPath);
                 throw new FileNotFoundException($"Tokenizer file not found at {tokenizerPath}");
             }
 
@@ -172,7 +175,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during inference: {ex.Message}");
+                _logger.LogError("Error during inference: {ErrorMessage}", ex.Message);
                 // Return a zero vector as fallback
                 return new float[_embeddingSize];
             }
@@ -196,13 +199,13 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 }
                 else
                 {
-                    Console.WriteLine($"Unexpected output shape: [{string.Join(", ", dims)}]");
+                    _logger.LogError("Unexpected output shape: [{OutputShape}]", string.Join(", ", dims));
                     return new float[_embeddingSize];
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error during inference: {ex.Message}");
+                _logger.LogError("Error during inference: {ErrorMessage}", ex.Message);
                 // Return a zero vector as fallback
                 return new float[_embeddingSize];
             }

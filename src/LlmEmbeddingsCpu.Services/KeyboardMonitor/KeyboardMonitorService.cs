@@ -1,28 +1,30 @@
 using Gma.System.MouseKeyHook;
 using System.Text;
 using System.Windows.Forms;
-using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using Microsoft.Extensions.Logging;
+
 namespace LlmEmbeddingsCpu.Services.KeyboardMonitor
 {
-    public class KeyboardMonitorService
+    public class KeyboardMonitorService(
+        KeyboardInputStorageService repository,
+        ILogger<KeyboardMonitorService> logger)
     {
         private IKeyboardEvents? _globalHook;
-        private readonly KeyboardInputStorageService _repository;
+        private readonly KeyboardInputStorageService _repository = repository;
         private readonly StringBuilder _currentBufferedInputSequence = new();
         public event EventHandler<string>? TextCaptured;
-        public KeyboardMonitorService(KeyboardInputStorageService repository)
-        {
-            _repository = repository;
-        }
+
+        private readonly ILogger<KeyboardMonitorService> _logger = logger;
+
         public void StartTracking()
         {
             // Subscribe to global events
             _globalHook = Hook.GlobalEvents();
             _globalHook.KeyPress += GlobalHook_KeyPress;
-            Console.WriteLine("Keyboard tracking started...");
+            _logger.LogInformation("Keyboard tracking started...");
         }
         
         public void StopTracking()
@@ -38,7 +40,7 @@ namespace LlmEmbeddingsCpu.Services.KeyboardMonitor
             {
                 _globalHook.KeyPress -= GlobalHook_KeyPress;
             }
-            Console.WriteLine("Keyboard tracking stopped.");
+            _logger.LogInformation("Keyboard tracking stopped.");
         }
 
         private void GlobalHook_KeyPress(object? sender, KeyPressEventArgs e)
@@ -107,7 +109,12 @@ namespace LlmEmbeddingsCpu.Services.KeyboardMonitor
             await _repository.SaveLogAsync(log);
             
             // Debug output
-            Console.WriteLine($"Saved word: {word} (encoded: {encodedWord})");
+            _logger.LogDebug("Saved word: {Word} (encoded: {EncodedWord})", word, encodedWord);
+        }
+
+        public void Dispose()
+        {
+             StopTracking();
         }
     }
 }

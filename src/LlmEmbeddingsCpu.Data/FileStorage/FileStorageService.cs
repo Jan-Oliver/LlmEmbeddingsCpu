@@ -1,11 +1,17 @@
+using Microsoft.Extensions.Logging;
+
 namespace LlmEmbeddingsCpu.Data.FileStorage
 {
     public class FileStorageService
     {
         private readonly string _basePath;
 
-        public FileStorageService(string basePath)
+        private readonly ILogger<FileStorageService> _logger;
+
+        public FileStorageService(string basePath, ILogger<FileStorageService> logger)
         {
+            _logger = logger;
+
             if (string.IsNullOrEmpty(basePath))
             {
                 _basePath = Path.Combine(
@@ -21,7 +27,7 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             // Create directory if it doesn't exist
             EnsureDirectoryExists(_basePath);
             
-            Console.WriteLine($"Storing logs in: {_basePath}");
+            _logger.LogInformation("Storing logs in: {BasePath}", _basePath);
         }
 
         /// <summary>
@@ -40,17 +46,17 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 if (append)
                 {
                     await File.AppendAllTextAsync(fullPath, content);
-                    Console.WriteLine($"Appended to file: {fullPath}");
+                    _logger.LogInformation("Appended to file: {FilePath}", fullPath);
                 }
                 else
                 {
                     await File.WriteAllTextAsync(fullPath, content);
-                    Console.WriteLine($"Wrote to file: {fullPath}");
+                    _logger.LogInformation("Wrote to file: {FilePath}", fullPath);
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error writing to {fullPath}: {ex.Message}");
+                _logger.LogError("Error writing to {FilePath}: {ErrorMessage}", fullPath, ex.Message);
             }
         }
 
@@ -76,7 +82,7 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error reading from {fullPath}: {ex.Message}");
+                _logger.LogError("Error reading from {FilePath}: {ErrorMessage}", fullPath, ex.Message);
                 return string.Empty;
             }
         }
@@ -113,11 +119,11 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             try
             {
                 File.Move(oldPath, newPath);
-                Console.WriteLine($"Renamed '{oldName}' to '{newName}'");
+                _logger.LogInformation("Renamed '{OldName}' to '{NewName}'", oldName, newName);
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error renaming file from '{oldName}' to '{newName}': {ex.Message}");
+                _logger.LogError("Error renaming file from '{OldName}' to '{NewName}': {ErrorMessage}", oldName, newName, ex.Message);
                 throw;
             }
         }
@@ -144,12 +150,12 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 if (!Directory.Exists(fullPath))
                 {
                     Directory.CreateDirectory(fullPath);
-                     Console.WriteLine($"Ensured directory exists: {fullPath}");
+                    _logger.LogInformation("Ensured directory exists: {FilePath}", fullPath);
                 }
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Failed to create directory {fullPath}: {ex.Message}");
+                _logger.LogError("Failed to create directory {FilePath}: {ErrorMessage}", fullPath, ex.Message);
                 throw new InvalidOperationException($"Failed to ensure directory exists.", ex);
             }
         }
