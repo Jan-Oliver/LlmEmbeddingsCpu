@@ -9,14 +9,15 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.EmbeddingService
 {
-    public class IntfloatEmbeddingService : IEmbeddingService, IDisposable
+    public class IntfloatEmbeddingService : IEmbeddingService
     {
-        private readonly InferenceSession _session;
         private readonly Tokenizers.DotNet.Tokenizer _tokenizer;
-        private readonly int _embeddingSize;
-        private readonly int _maxSequenceLength;
+        private readonly SessionOptions _sessionOptions;
+        private readonly string _modelPath;
+
+        private readonly int    _embeddingSize;
+        private readonly int    _maxSequenceLength;
         private readonly string _modelName;
-        private readonly string _modelDirectory;
         private readonly ILogger<IntfloatEmbeddingService> _logger;
 
         public IntfloatEmbeddingService(
@@ -29,40 +30,36 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             _modelName = modelName;
             _embeddingSize = embeddingSize;
             _maxSequenceLength = maxSequenceLength;
-            // Look for models in the deps directory
-            _modelDirectory = Path.Combine(GetRootDirectory(), "deps", "intfloat", modelName);
-        
-            string modelPath = Path.Combine(_modelDirectory, "model.onnx");
-            string tokenizerPath = Path.Combine(_modelDirectory, "tokenizer.json");
+            
+            string modelDir    = Path.Combine(GetRootDirectory(), "deps", "intfloat", modelName);
+            _modelPath         = Path.Combine(modelDir, "model.onnx");
+            string tokPath     = Path.Combine(modelDir, "tokenizer.json");
 
             // Ensure model files exist
-            if (!File.Exists(modelPath))
+            if (!File.Exists(_modelPath))
             {
-                _logger.LogError("Model file not found at {ModelPath}", modelPath);
-                throw new FileNotFoundException($"Model file not found at {modelPath}");
+                _logger.LogError("Model file not found at {ModelPath}", _modelPath);
+                throw new FileNotFoundException($"Model file not found at {_modelPath}");
             }
 
-            if (!File.Exists(tokenizerPath))
+            if (!File.Exists(tokPath))
             {
-                _logger.LogError("Tokenizer file not found at {TokenizerPath}", tokenizerPath);
-                throw new FileNotFoundException($"Tokenizer file not found at {tokenizerPath}");
+                _logger.LogError("Tokenizer file not found at {TokenizerPath}", tokPath);
+                throw new FileNotFoundException($"Tokenizer file not found at {tokPath}");
             }
 
             // Initialize tokenizer
-            _tokenizer = new Tokenizers.DotNet.Tokenizer(vocabPath: tokenizerPath);
+            _tokenizer = new Tokenizers.DotNet.Tokenizer(vocabPath: tokPath);
 
             // Setup ONNX session options
-            var sessionOptions = new SessionOptions
+            _sessionOptions = new SessionOptions
             {
                 ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
             };
 
             // Initialize ONNX session
-            _session = new InferenceSession(modelPath, sessionOptions);
-            
-            // Store model name for embedding metadata
-            _modelName = Path.GetFileName(_modelDirectory);
+            //_session = new InferenceSession(modelPath, sessionOptions);
         }
 
         private static string GetRootDirectory()
@@ -70,50 +67,37 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             return AppDomain.CurrentDomain.BaseDirectory;
         }
 
+        // ─────────────────────────────────────────────────────── public API
         public async Task<Core.Models.Embedding> GenerateEmbeddingAsync(string text)
         {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return new Core.Models.Embedding 
-                { 
-                    SourceText = string.Empty,
-                    Vector = new float[_embeddingSize],
-                    ModelName = _modelName
-                };
-            }
-
-            return await Task.Run(() =>
-            {
-                // Preprocess text - normalize, remove extra whitespace, add prefix
-                text = PreprocessText(text);
-
-                // Tokenize
-                var tokens = _tokenizer.Encode(text);
-
-                // Generate embedding vector
-                var vector = GenerateEmbeddingVector(tokens);
-
-                // Create embedding object
-                return new Core.Models.Embedding
-                {
-                    SourceText = text,
-                    Vector = vector,
-                    ModelName = _modelName
-                };
-            });
+            var list = await GenerateEmbeddingsAsync(new[] { text });
+            return list.First();
         }
 
         public async Task<IEnumerable<Core.Models.Embedding>> GenerateEmbeddingsAsync(IEnumerable<string> texts)
         {
-            var embeddings = new List<Core.Models.Embedding>();
-            
-            foreach (var text in texts)
+            return await Task.Run(() =>
             {
-                var embedding = await GenerateEmbeddingAsync(text);
-                embeddings.Add(embedding);
-            }
-            
-            return embeddings;
+                using var session = new InferenceSession(_modelPath, _sessionOptions);
+
+                var results = new List<Core.Models.Embedding>();
+                foreach (var raw in texts)
+                {
+                    string pre  = PreprocessText(raw);
+                    var tokens  = _tokenizer.Encode(pre);
+                    var vec     = GenerateEmbeddingVector(session, tokens);
+
+                    results.Add(new Core.Models.Embedding
+                    {
+                        SourceText = pre,
+                        Vector     = vec,
+                        ModelName  = _modelName
+                    });
+                }
+
+                session.Dispose();
+                return results;
+            });
         }
 
         private static string PreprocessText(string text)
@@ -127,7 +111,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             return text;
         }
 
-        private float[] GenerateEmbeddingVector(uint[] tokens)
+        private float[] GenerateEmbeddingVector(InferenceSession session,uint[] tokens)
         {
             // Note: If we want to implement batching, we need to 
             // - add a batch dimension to the input tensors
@@ -171,7 +155,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             IDisposableReadOnlyCollection<DisposableNamedOnnxValue> outputs;
             try
             {
-                outputs = _session.Run(inputs);
+                outputs = session.Run(inputs);
             }
             catch (Exception ex)
             {
@@ -267,11 +251,6 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                     vector[i] /= norm;
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            _session?.Dispose();
         }
     }
 }

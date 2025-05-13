@@ -22,15 +22,18 @@ namespace LlmEmbeddingsCpu.App
         static void Main(string[] args)
         {
             // Parse command line arguments
-            bool processNow = false;
+            bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
+            bool isDebugMode = true; //args.Contains("--debug", StringComparer.OrdinalIgnoreCase);
             string logDir = "logs";
 
             // Configure Serilog for File Logging
+            LogLevel minLogLevel = isDebugMode ? LogLevel.Debug : LogLevel.Warning;
             string logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, logDir);
             Directory.CreateDirectory(logDirectory);
             string logFilePath = Path.Combine(logDirectory, "application-.log");
 
             Log.Logger = new LoggerConfiguration()
+                //.MinimumLevel.Is(minLogLevel) 
                 .Enrich.FromLogContext()
                 .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
                 .CreateLogger();
@@ -38,7 +41,7 @@ namespace LlmEmbeddingsCpu.App
             AppDomain.CurrentDomain.ProcessExit += (s, e) => Log.CloseAndFlush();
             
             // Configure services
-            var serviceProvider = ConfigureServices(logDir);
+            var serviceProvider = ConfigureServices(logDir, minLogLevel);
 
             if (processNow)
             {
@@ -57,34 +60,35 @@ namespace LlmEmbeddingsCpu.App
             // Get the scheduled service
             var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
 
-            // Subscribe to events
-            keyboardTracker.TextCaptured += (sender, text) =>
-            {
-                Console.WriteLine($"Keyboard captured: {text}");
-            };
+            // Subscribe to events if debug mode is enabled
+            if (isDebugMode){
+                keyboardTracker.TextCaptured += (sender, text) =>
+                {
+                    Console.WriteLine($"Keyboard captured: {text}");
+                };
 
-            mouseTracker.TextCaptured += (sender, text) =>
-            {
-                Console.WriteLine($"Mouse metrics: {text}");
-            };
+                mouseTracker.TextCaptured += (sender, text) =>
+                {
+                    Console.WriteLine($"Mouse metrics: {text}");
+                };
 
-            windowTracker.ActiveWindowChanged += (sender, e) =>
-            {
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("WINDOW CHANGED:");
-                Console.WriteLine(e.WindowTitle);
-                Console.WriteLine(e.ProcessName);
-                Console.WriteLine(e.WindowHandle);
-                Console.ResetColor();
-            };
+                windowTracker.ActiveWindowChanged += (sender, e) =>
+                {
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    Console.WriteLine("WINDOW CHANGED:");
+                    Console.WriteLine(e.WindowTitle);
+                    Console.WriteLine(e.ProcessName);
+                    Console.WriteLine(e.WindowHandle);
+                    Console.ResetColor();
+                };
+            }
             
             // Start tracking
             keyboardTracker.StartTracking();
             mouseTracker.StartTracking();
             windowTracker.StartTracking();
 
-            // Schedule daily processing at midnight
-            // at 12:00am
+            // Schedule daily processing
             scheduledProcessor.ScheduleProcessingAsync(TimeSpan.FromHours(0));
             
             Log.Information("Input tracking and scheduled processing started. Press Enter to exit.");
@@ -99,7 +103,7 @@ namespace LlmEmbeddingsCpu.App
             scheduledProcessor.StopScheduledProcessingAsync().Wait();
         }
         
-        private static ServiceProvider ConfigureServices(string logDir = "logs")
+        private static ServiceProvider ConfigureServices(string logDir = "logs", LogLevel minLogLevel = LogLevel.Debug)
         {
             var services = new ServiceCollection();
             
@@ -108,7 +112,7 @@ namespace LlmEmbeddingsCpu.App
             {
                 configure.ClearProviders();
                 configure.AddSerilog();
-                configure.SetMinimumLevel(LogLevel.Debug);
+                configure.SetMinimumLevel(minLogLevel);
             });
             
             // Register storage services
