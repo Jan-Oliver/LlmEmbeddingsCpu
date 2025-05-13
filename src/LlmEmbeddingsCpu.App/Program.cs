@@ -107,13 +107,13 @@ namespace LlmEmbeddingsCpu.App
             // Register embedding service
             services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
             
-            // Register scheduled processing service
-            services.AddSingleton<ScheduledProcessingService>();
-            
             // Register input tracking services by concrete type
             services.AddSingleton<KeyboardMonitorService>();
             services.AddSingleton<MouseMonitorService>();
             services.AddSingleton<WindowMonitorrService>();
+
+            // Register scheduled processing service
+            services.AddSingleton<ScheduledProcessingService>();
             
             return services.BuildServiceProvider();
         }

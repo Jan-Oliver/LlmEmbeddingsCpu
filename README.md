@@ -13,3 +13,15 @@ Then, put it into the `/src/LlmEmbeddingsCpu.App/deps/sentence-transformers/all-
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj
 ```
 
+```
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-x64
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64
+
+```
+
+## Build
+```
+dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -c Release -r win-win-arm64 --self-contained true /p:PublishSingleFile=false
+
+dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -c Release -r win-win-arm64 --self-contained true /p:PublishSingleFile=false
+```
