@@ -18,10 +18,10 @@ DefaultGroupName=LLM Embeddings CPU
 OutputBaseFilename=LlmEmbeddingsCpuInstaller
 
 ; --- Compression / looks ----------------------------------------------
-Compression=lzma
-SolidCompression=yes
-;Compression=none
-;SolidCompression=no
+;Compression=lzma
+;SolidCompression=yes
+Compression=none
+SolidCompression=no
 WizardStyle=modern
 
 ; --- We need admin rights to write to Program Files and create a task --
@@ -57,6 +57,12 @@ Filename: "{sys}\schtasks.exe"; \
 Parameters: "/Create /F /RL HIGHEST /SC ONLOGON /DELAY 0000:10 /TN ""LLMEmbeddingsCpuHooks"" /TR ""{app}\LlmEmbeddingsCpu.App.exe"""; \
 Flags: runhidden waituntilterminated; \
 StatusMsg: "Registering autostart task..."
+
+; Patch battery + time‑limit settings --------------------------------
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-ScheduledTask -TaskName 'LLMEmbeddingsCpuHooks'; $s = $t.Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -TaskName 'LLMEmbeddingsCpuHooks' -Settings $s"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Removing battery & time‑limit restrictions..."
 
 ; --- Run the agent once right now -------------------------
 Filename: "{app}\LlmEmbeddingsCpu.App.exe"; \
