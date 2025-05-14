@@ -2,119 +2,138 @@ using Gma.System.MouseKeyHook;
 using System.Text;
 using System.Windows.Forms;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
 using Microsoft.Extensions.Logging;
+using LlmEmbeddingsCpu.Core.Enums;
 
-namespace LlmEmbeddingsCpu.Services.KeyboardMonitor
+namespace LlmEmbeddingsCpu.Services.KeyboardMonitor;
+
+public sealed class KeyboardMonitorService(
+    KeyboardInputStorageService keyboardInputStorageService,
+    ILogger<KeyboardMonitorService> logger)
+    : IDisposable
 {
-    public class KeyboardMonitorService(
-        KeyboardInputStorageService repository,
-        ILogger<KeyboardMonitorService> logger)
+    private const int MaxCharsInBuffer = 1_000;  // < 512 tokens
+
+    private IKeyboardEvents? _hook;
+    private readonly StringBuilder _buffer = new();
+    private readonly KeyboardInputStorageService _storage = keyboardInputStorageService;
+    private readonly ILogger<KeyboardMonitorService> _log = logger;
+
+    /* ------------------------------------------------------------------ */
+    public void StartTracking()
     {
-        private IKeyboardEvents? _globalHook;
-        private readonly KeyboardInputStorageService _repository = repository;
-        private readonly StringBuilder _currentBufferedInputSequence = new();
-        public event EventHandler<string>? TextCaptured;
+        _hook = Hook.GlobalEvents();
+        _hook.KeyPress += OnKeyPress;   // printable characters
+        _hook.KeyDown  += OnKeyDown;    // everything
 
-        private readonly ILogger<KeyboardMonitorService> _logger = logger;
+        _log.LogInformation("Keyboard tracking started …");
+    }
 
-        public void StartTracking()
+    public void StopTracking()
+    {
+        FlushBuffer();
+        if (_hook is not null)
         {
-            // Subscribe to global events
-            _globalHook = Hook.GlobalEvents();
-            _globalHook.KeyPress += GlobalHook_KeyPress;
-            _logger.LogInformation("Keyboard tracking started...");
+            _hook.KeyPress -= OnKeyPress;
+            _hook.KeyDown  -= OnKeyDown;
         }
+        _log.LogInformation("Keyboard tracking stopped.");
+    }
+
+    public void Dispose() => StopTracking();
+
+    /* ---------------------------- events ------------------------------ */
+    private void OnKeyPress(object? _, KeyPressEventArgs e)
+    {
+        if (char.IsControl(e.KeyChar)) return;
+
+        if ((Control.ModifierKeys & (Keys.Control | Keys.Alt)) != 0) return;
         
-        public void StopTracking()
-        {
-            // Save any pending word
-            if (_currentBufferedInputSequence.Length > 0)
-            {
-                SaveWord(_currentBufferedInputSequence.ToString());
-                _currentBufferedInputSequence.Clear();
-            }
-            
-            if (_globalHook != null)
-            {
-                _globalHook.KeyPress -= GlobalHook_KeyPress;
-            }
-            _logger.LogInformation("Keyboard tracking stopped.");
-        }
+        _buffer.Append(e.KeyChar);
 
-        private void GlobalHook_KeyPress(object? sender, KeyPressEventArgs e)
-        {
-            // Always save on enter/return
-            if (e.KeyChar == '\r' || e.KeyChar == '\n')
-            {
-                if (_currentBufferedInputSequence.Length > 0)
-                {
-                    string sentence = _currentBufferedInputSequence.ToString().Trim();
-                    if (!string.IsNullOrWhiteSpace(sentence))
-                    {
-                        SaveWord(sentence);
-                        TextCaptured?.Invoke(this, sentence);
-                    }
-                    _currentBufferedInputSequence.Clear();
-                }
-                return;
-            }
+        // Size‑based flush
+        if (_buffer.Length >= MaxCharsInBuffer)
+            FlushBuffer();
+    }
 
-            // Check if the key is a sentence terminator
-            bool isTerminator = e.KeyChar == '.' || e.KeyChar == '?' || e.KeyChar == '!';
-            
-            if (isTerminator)
-            {
-                _currentBufferedInputSequence.Append(e.KeyChar);
-            }
-            else if (e.KeyChar == ' ' && _currentBufferedInputSequence.Length > 0)
-            {
-                // If the last character was a terminator and now we see a space, save the sentence
-                char lastChar = _currentBufferedInputSequence[^1];
-                if (lastChar == '.' || lastChar == '?' || lastChar == '!')
-                {
-                    string sentence = _currentBufferedInputSequence.ToString().Trim();
-                    if (!string.IsNullOrWhiteSpace(sentence))
-                    {
-                        SaveWord(sentence);
-                        TextCaptured?.Invoke(this, sentence);
-                    }
-                    _currentBufferedInputSequence.Clear();
-                }
-                _currentBufferedInputSequence.Append(e.KeyChar);
-            }
-            else
-            {
-                // Collect all printable characters for the sentence
-                if (!char.IsControl(e.KeyChar))
-                {
-                    _currentBufferedInputSequence.Append(e.KeyChar);
-                }
-            }
-        }
-        
-        private async void SaveWord(string word)
-        {
-            string encodedWord = word.ToRot13();
-            
-            // Create log entry
-            var log = new KeyboardInputLog
-            {
-                Content = encodedWord,
-                Timestamp = DateTime.Now
-            };
-            
-            // Save asynchronously
-            await _repository.SaveLogAsync(log);
-            
-            // Debug output
-            _logger.LogDebug("Saved word: {Word} (encoded: {EncodedWord})", word, encodedWord);
-        }
+    private void OnKeyDown(object? _, KeyEventArgs e)
+    {
+        if (!ShouldLogSpecial(e)) return;   // “normal” key → ignore
 
-        public void Dispose()
+        FlushBuffer();                      // dump text first
+        _ = SaveAsync(KeyboardInputType.Special, BuildSpecialString(e));
+    }
+
+    /* ------------------------- classification ------------------------- */
+
+    /// <summary>True ⇢ this key press counts as “special” and should be logged.</summary>
+    private static bool ShouldLogSpecial(KeyEventArgs e)
+    {
+        // ignore pure modifier keys (Shift/Ctrl/Alt by themselves)
+        if (e.KeyCode is Keys.LShiftKey or Keys.RShiftKey or Keys.ShiftKey or
+                        Keys.LControlKey or Keys.RControlKey or Keys.ControlKey or
+                        Keys.LMenu      or Keys.RMenu      or Keys.Menu)
+            return false;
+
+        // any key in combination with Ctrl or Alt is “special”
+        if (e.Control || e.Alt) return true;
+
+        // navigation / editing keys we explicitly care about
+        return e.KeyCode is
+            Keys.Return or         // Enter
+            Keys.Tab    or
+            Keys.Back   or Keys.Delete or
+            Keys.Left   or Keys.Right or Keys.Up or Keys.Down or
+            Keys.Home   or Keys.End   or Keys.PageUp or Keys.PageDown or
+            Keys.Insert or
+            Keys.Escape ||
+            e.KeyCode is >= Keys.F1 and <= Keys.F24;   // function keys
+    }
+
+    private static string BuildSpecialString(KeyEventArgs e)
+    {
+        var parts = new List<string>();
+        if (e.Control) parts.Add("ctrl");
+        if (e.Alt)     parts.Add("alt");
+        if (e.Shift && (e.Control || e.Alt)) parts.Add("shift");
+
+        parts.Add(e.KeyCode switch
         {
-             StopTracking();
-        }
+            Keys.Return => "enter",
+            Keys.Back   => "backspace",
+            Keys.Delete => "delete",
+            Keys.Tab    => "tab",
+            Keys.Left   => "arrow_left",
+            Keys.Right  => "arrow_right",
+            Keys.Up     => "arrow_up",
+            Keys.Down   => "arrow_down",
+            _           => e.KeyCode.ToString().ToLower()
+        });
+
+        return string.Join('+', parts);
+    }
+
+    /* --------------------------- storage ------------------------------ */
+
+    private void FlushBuffer()
+    {
+        if (_buffer.Length == 0) return;
+        _ = SaveAsync(KeyboardInputType.Text, _buffer.ToString());
+        _buffer.Clear();
+    }
+
+    private async Task SaveAsync(KeyboardInputType type, string value)
+    {
+
+        var logEntry = new KeyboardInputLog
+        {
+            Content   = value,
+            Type      = type,
+            Timestamp = DateTime.Now
+        };
+
+        await _storage.SaveLogAsyncAndEncrypt(logEntry);
+        _log.LogDebug("Saved log: {Content}", logEntry.Content);
     }
 }

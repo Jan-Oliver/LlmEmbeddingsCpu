@@ -2,6 +2,8 @@ using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.FileStorage;
 using Microsoft.Extensions.Logging;
+using LlmEmbeddingsCpu.Core.Enums;
+using LlmEmbeddingsCpu.Common.Extensions;
 
 namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 {
@@ -20,10 +22,11 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             return $"{_keyboardLogBaseFileName}-{timestamp}.txt";
         }
 
-        public async Task SaveLogAsync(KeyboardInputLog log)
+        public async Task SaveLogAsyncAndEncrypt(KeyboardInputLog log)
         {
             string fileName = GetFilePath(DateTime.Now);
-            string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content}";
+            string encryptedContent = log.Content.ToRot13();
+            string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Type.ToString().ToLower()}|{encryptedContent}";
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
@@ -67,7 +70,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
         // Get all logs for a given date.
-        public async Task<IEnumerable<KeyboardInputLog>> GetPreviousLogsAsync(DateTime date)
+        public async Task<IEnumerable<KeyboardInputLog>> GetPreviousLogsAsyncDecrypted(DateTime date)
         {
             try
             {
@@ -86,7 +89,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                     return logs;
                 }
 
-                var keyboardLogs = ParseKeyboardLogsFromContent(content, date);
+                var keyboardLogs = ParseKeyboardLogsFromContentAndDecrypt(content, date);
                 logs.AddRange(keyboardLogs);
 
                 return logs;
@@ -99,7 +102,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
         // Parse the logs from the content.
-        private static IEnumerable<KeyboardInputLog> ParseKeyboardLogsFromContent(string content, DateTime fileDate)
+        private static IEnumerable<KeyboardInputLog> ParseKeyboardLogsFromContentAndDecrypt(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
                 yield break;
@@ -112,14 +115,31 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 if (line.Length > 10 && line[0] == '[' && line[9] == ']')
                 {
                     string timestampStr = line[1..9];
-                    string logContent = line[10..].Trim();
+                    string remainder    = line[10..].Trim();
 
-                    if (DateTime.TryParseExact(timestampStr, timestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timestamp))
+                    if (DateTime.TryParseExact(timestampStr, timestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime timeOnly))
                     {
+                        // split "special|ctrl+alt+n"
+                        int pipe = remainder.IndexOf('|');
+                        if (pipe <= 0) continue;          // malformed line – skip
+
+                        string eventStr = remainder[..pipe];
+                        string payload  = remainder[(pipe + 1)..];
+                        string decryptedPayload = payload.FromRot13();
+
+                        if (!Enum.TryParse<KeyboardInputType>(eventStr, true, out var type))
+                            continue;                    // unknown event – skip
+
+                        DateTime timestamp = fileDate.Date
+                                    .AddHours (timeOnly.Hour)
+                                    .AddMinutes(timeOnly.Minute)
+                                    .AddSeconds(timeOnly.Second);
+
                         yield return new KeyboardInputLog
                         {
-                            Content = logContent,
                             Timestamp = timestamp,
+                            Type = type,
+                            Content = decryptedPayload,
                         };
                     }
                 }
@@ -151,7 +171,6 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
         // Rename the file to the deleted directory.
-        // TODO[DB-ACCESS-GRANTED] Change this to actually delete the file.
         private void RenameToDeleted(string fileName)
         {
             try

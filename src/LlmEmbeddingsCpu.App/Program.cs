@@ -51,7 +51,7 @@ namespace LlmEmbeddingsCpu.App
 
             // Configure the logger and only keep the last 5 days of logs
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Is(MapLogLevel(minLogLevel)) 
+                .MinimumLevel.Is(MapLogLevel(minLogLevel))
                 .Enrich.FromLogContext()
                 .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5)
                 .CreateLogger();
@@ -79,26 +79,6 @@ namespace LlmEmbeddingsCpu.App
                     Console.WriteLine("Processing complete.");
                     return;
                 }
-
-                keyboardTracker.TextCaptured += (sender, text) =>
-                {
-                    Console.WriteLine($"Keyboard captured: {text}");
-                };
-
-                mouseTracker.TextCaptured += (sender, text) =>
-                {
-                    Console.WriteLine($"Mouse metrics: {text}");
-                };
-
-                windowTracker.ActiveWindowChanged += (sender, e) =>
-                {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.WriteLine("WINDOW CHANGED:");
-                    Console.WriteLine(e.WindowTitle);
-                    Console.WriteLine(e.ProcessName);
-                    Console.WriteLine(e.WindowHandle);
-                    Console.ResetColor();
-                };
             #endif
             
             // Start tracking

@@ -113,21 +113,20 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     
                     // Check if there are logs for this date
                     // Get logs for this date
-                    var logs = await _keyboardInputStorageService.GetPreviousLogsAsync(dateToProcess);
-                    var keyboardLogs = logs.Select(log => log.Content).ToList();
+                    var logs = await _keyboardInputStorageService.GetPreviousLogsAsyncDecrypted(dateToProcess);
+                    var keyboardLogs = logs.ToList();
                     
                     _logger.LogInformation("Processing {KeyboardLogCount} keyboard logs", keyboardLogs.Count);
                     
                     // Process the logs and generate embeddings
                     var embeddings = new List<Embedding>();
                     
-                    foreach (var text in keyboardLogs)
+                    foreach (var keyboardLog in keyboardLogs)
                     {
-                        if (!string.IsNullOrWhiteSpace(text))
+                        if (!string.IsNullOrWhiteSpace(keyboardLog.Content))
                         {
-                            string decryptedText = text.FromRot13();
-                            _logger.LogInformation("Processing text: {Text}", decryptedText);
-                            var embedding = await _embeddingService.GenerateEmbeddingAsync(decryptedText);
+                            _logger.LogInformation("Processing text: {Text}", keyboardLog.Content);
+                            var embedding = await _embeddingService.GenerateEmbeddingAsync(keyboardLog);
                             _logger.LogInformation("First 5 elements of embedding: {Embedding}", string.Join(", ", embedding.Vector.Take(5)));
                             embeddings.Add(embedding);
                         }

@@ -5,6 +5,7 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
+using LlmEmbeddingsCpu.Core.Models;
 
 
 namespace LlmEmbeddingsCpu.Services.EmbeddingService
@@ -68,22 +69,22 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         }
 
         // ─────────────────────────────────────────────────────── public API
-        public async Task<Core.Models.Embedding> GenerateEmbeddingAsync(string text)
+        public async Task<Core.Models.Embedding> GenerateEmbeddingAsync(KeyboardInputLog keyboardInputLog)
         {
-            var list = await GenerateEmbeddingsAsync(new[] { text });
+            var list = await GenerateEmbeddingsAsync(new[] { keyboardInputLog });
             return list.First();
         }
 
-        public async Task<IEnumerable<Core.Models.Embedding>> GenerateEmbeddingsAsync(IEnumerable<string> texts)
+        public async Task<IEnumerable<Core.Models.Embedding>> GenerateEmbeddingsAsync(IEnumerable<KeyboardInputLog> keyboardInputLogs)
         {
             return await Task.Run(() =>
             {
                 using var session = new InferenceSession(_modelPath, _sessionOptions);
 
                 var results = new List<Core.Models.Embedding>();
-                foreach (var raw in texts)
+                foreach (var inputLog in keyboardInputLogs)
                 {
-                    string pre  = PreprocessText(raw);
+                    string pre  = PreprocessText(inputLog.Content);
                     var tokens  = _tokenizer.Encode(pre);
                     var vec     = GenerateEmbeddingVector(session, tokens);
 
@@ -91,7 +92,9 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                     {
                         SourceText = pre,
                         Vector     = vec,
-                        ModelName  = _modelName
+                        ModelName  = _modelName,
+                        Timestamp  = inputLog.Timestamp,
+                        KeyboardInputType = inputLog.Type
                     });
                 }
 
