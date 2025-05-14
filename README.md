@@ -18,13 +18,14 @@ dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64
 ```
 
-## Build
+## Build for x64/x86
 ```
-dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -c Release -r win-win-arm64 --self-contained true /p:PublishSingleFile=false
+dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeAllContentForSelfExtract=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
+```
 
+## Build for ARM
+```
 dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -c Release -r win-arm64 -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeAllContentForSelfExtract=true -p:PublishTrimmed=true -p:DebugType=None -p:DebugSymbols=false
-
--> files are then logged to "$Env:TEMP\.net". open with  explorer "$Env:TEMP\.net"
 ```
 
 

@@ -10,22 +10,35 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.21.0" />
     <PackageReference Include="Microsoft.Windows.Compatibility" Version="9.0.2" />
     <PackageReference Include="MouseKeyHook" Version="5.7.1" />
-    <PackageReference Include="Tokenizers.DotNet" Version="1.1.0" />
-    <PackageReference Include="Tokenizers.DotNet.runtime.win-arm64" Version="1.1.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />
+  </ItemGroup>
+
+  <!-- RUNTIME‑SPECIFIC PACKAGE & FILE for win‑x64 -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PackageReference Include="Tokenizers.DotNet.runtime.win-x64" Version="1.1.0" />
+    <PackageReference Include="Tokenizers.DotNet" Version="1.1.0" />
+    <Content Include="$(UserProfile)\.nuget\packages\tokenizers.dotnet.runtime.win-x64\1.1.0\runtimes\win-x64\native\hf_tokenizers.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- RUNTIME‑SPECIFIC PACKAGE & FILE for win‑arm64 -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+    <PackageReference Include="Tokenizers.DotNet.runtime.win-arm64" Version="1.1.0" />
+    <PackageReference Include="Tokenizers.DotNet" Version="1.1.0" />
+    <Content Include="$(UserProfile)\.nuget\packages\tokenizers.dotnet.runtime.win-arm64\1.1.0\runtimes\win-arm64\native\hf_tokenizers.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="$(UserProfile)\.nuget\packages\tokenizers.dotnet.runtime.win-arm64\1.1.0\runtimes\win-arm64\native\hf_tokenizers.dll"> 
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>Always</CopyToPublishDirectory> 
-    </Content>
-  </ItemGroup>
+  
 
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>

@@ -15,13 +15,13 @@ DefaultDirName={autopf}\LLM Embeddings CPU
 DefaultGroupName=LLM Embeddings CPU         
 
 ; --- Output EXE --------------------------------------------------------
-OutputBaseFilename=LlmEmbeddingsCpuInstaller
+OutputBaseFilename=LlmEmbeddingsCpuInstallerX64
 
 ; --- Compression / looks ----------------------------------------------
-;Compression=lzma
-;SolidCompression=yes
-Compression=none
-SolidCompression=no
+Compression=lzma
+SolidCompression=yes
+;Compression=none
+;SolidCompression=no
 WizardStyle=modern
 
 ; --- We need admin rights to write to Program Files and create a task --
@@ -38,7 +38,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 ;       -p:PublishSingleFile=true -p:SelfContained=true
 ;
 ; Then point Source to that one EXE:
-Source: ".\src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-arm64\publish\LlmEmbeddingsCpu.App.exe"; \
+Source: ".\src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe"; \
     DestDir: "{app}"; Flags: ignoreversion
 
 [Run]

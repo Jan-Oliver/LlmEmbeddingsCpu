@@ -23,11 +23,9 @@ namespace LlmEmbeddingsCpu.App
         {
             // Parse command line arguments
             bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
-            Console.WriteLine("Process now: " + processNow);
 
             // Configure Logging directory
             string basePath = AppContext.BaseDirectory;
-            Console.WriteLine("Base path: " + basePath);
 
             #if DEBUG
                 Console.WriteLine("DEBUG mode");
