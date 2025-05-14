@@ -11,14 +11,21 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _embeddingDirectoryName = "embeddings";
         private readonly ILogger<EmbeddingStorageService> _logger = logger;
-        public async Task SaveEmbeddingAsync(Embedding embedding, string date)
+
+        public string GetFolderPath(DateTime date)
+        {
+            string dateStr = date.ToString("yyyy-MM-dd");
+            return Path.Combine(_embeddingDirectoryName, dateStr);
+        }
+
+        public async Task SaveEmbeddingAsync(Embedding embedding, DateTime date)
         {
             try
             {
                 ArgumentNullException.ThrowIfNull(embedding);
 
                 // Create directory path and ensure it exists
-                string datePath = Path.Combine(_embeddingDirectoryName, date);
+                string datePath = GetFolderPath(date);
                 _fileStorageService.EnsureDirectoryExists(datePath);
 
                 // Create file name using Path.Combine for proper path handling
@@ -37,7 +44,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
         }
 
-        public async Task SaveEmbeddingsAsync(IEnumerable<Embedding> embeddings, string date)
+        public async Task SaveEmbeddingsAsync(IEnumerable<Embedding> embeddings, DateTime date)
         {
             try
             {

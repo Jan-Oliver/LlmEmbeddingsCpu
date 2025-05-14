@@ -13,15 +13,15 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         private readonly string _mouseLogBaseFileName = "mouse_logs";
         private readonly ILogger<MouseInputStorageService> _logger = logger;
 
-        private string GetCurrentFileName()
+        public string GetFilePath(DateTime date)
         {
-            string timestamp = DateTime.Now.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_mouseLogBaseFileName}-{timestamp}.txt";
         }
 
         public async Task SaveLogAsync(MouseInputLog log)
         {
-            string fileName = GetCurrentFileName();
+            string fileName = GetFilePath(DateTime.Now);
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content.X}|{log.Content.Y}|{(int)log.Content.Button}|{log.Content.Clicks}|{log.Content.Delta}";
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
@@ -67,7 +67,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         {
             try
             {
-                string mouseInputFileName = GetCurrentFileName();
+                string mouseInputFileName = GetFilePath(date);
 
                 var logs = new List<MouseInputLog>();
                 
@@ -173,60 +173,6 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
 
                 if (log != null)
                     yield return log;
-            }
-        }
-
-        public void MarkFileAsDeleted(DateTime date)
-        {
-            try
-            {
-                string mouseFileName = GetCurrentFileName();
-
-                bool mouseExists = _fileStorageService.CheckIfFileExists(mouseFileName);
-
-                if (!mouseExists)
-                {
-                    _logger.LogError("No log files found for date: {Date}", date);
-                    throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
-                }
-
-                RenameToDeleted(mouseFileName);
-            }
-            catch (Exception ex) when (ex is not FileNotFoundException)
-            {
-                _logger.LogError("Error marking files as deleted: {ErrorMessage}", ex.Message);
-                throw new InvalidOperationException($"Error marking files as deleted: {ex.Message}", ex);
-            }
-        }
-
-        private void RenameToDeleted(string fileName)
-        {
-            try
-            {
-                // Create logs-deleted directory if it doesn't exist
-                string deletedDir = "logs-deleted";
-                _fileStorageService.EnsureDirectoryExists(deletedDir);
-
-                string newFileName = Path.Combine(deletedDir, fileName);
-                
-                // If file already exists in deleted directory, append timestamp to make it unique
-                if (_fileStorageService.CheckIfFileExists(newFileName))
-                {
-                    string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                    string ext = Path.GetExtension(fileName);
-                    string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    newFileName = Path.Combine(deletedDir, $"{fileNameWithoutExt}-{timestamp}{ext}");
-                }
-
-                // Move the file to the deleted directory
-                _fileStorageService.RenameFile(fileName, newFileName);
-                
-                _logger.LogInformation("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("Error moving file {FileName} to deleted directory: {ErrorMessage}", fileName, ex.Message);
-                throw new InvalidOperationException($"Error moving file {fileName} to deleted directory: {ex.Message}", ex);
             }
         }
     }

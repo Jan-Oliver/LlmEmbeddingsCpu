@@ -23,34 +23,43 @@ namespace LlmEmbeddingsCpu.App
         {
             // Parse command line arguments
             bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
-            bool isDebugMode = true; //args.Contains("--debug", StringComparer.OrdinalIgnoreCase);
-            string logDir = "logs";
+            Console.WriteLine("Process now: " + processNow);
 
-            // Configure Serilog for File Logging
-            LogLevel minLogLevel = isDebugMode ? LogLevel.Debug : LogLevel.Warning;
-            string logDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, logDir);
+            // Configure Logging directory
+            string basePath = AppContext.BaseDirectory;
+            Console.WriteLine("Base path: " + basePath);
+
+            #if DEBUG
+                Console.WriteLine("DEBUG mode");
+                string logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+                LogLevel minLogLevel = LogLevel.Debug;
+                Console.WriteLine("Log directory: " + logDirectory);
+                Console.WriteLine("Min log level: " + minLogLevel);
+            #else
+                Console.WriteLine("RELEASE mode");
+                string logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "LlmEmbeddingsCpu", "logs");
+                // TODO: Set the min log level to warning when we actually ship the app
+                LogLevel minLogLevel = LogLevel.Debug;
+                Console.WriteLine("Log directory: " + logDirectory);
+                Console.WriteLine("Min log level: " + minLogLevel);
+            #endif
+
             Directory.CreateDirectory(logDirectory);
             string logFilePath = Path.Combine(logDirectory, "application-.log");
 
+            // Configure the logger and only keep the last 5 days of logs
             Log.Logger = new LoggerConfiguration()
-                //.MinimumLevel.Is(minLogLevel) 
+                .MinimumLevel.Is(MapLogLevel(minLogLevel)) 
                 .Enrich.FromLogContext()
-                .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day)
+                .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day, retainedFileCountLimit: 5)
                 .CreateLogger();
 
             AppDomain.CurrentDomain.ProcessExit += (s, e) => Log.CloseAndFlush();
             
             // Configure services
-            var serviceProvider = ConfigureServices(logDir, minLogLevel);
-
-            if (processNow)
-            {
-                Log.Information("Running one-time processing...");
-                var processor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
-                processor.ProcessNowAsync().Wait();
-                Log.Information("Processing complete.");
-                return;
-            }
+            var serviceProvider = ConfigureServices(logDirectory, minLogLevel);
 
             // Get the tracking services by concrete type
             var keyboardTracker = serviceProvider.GetRequiredService<KeyboardMonitorService>();
@@ -61,7 +70,16 @@ namespace LlmEmbeddingsCpu.App
             var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
 
             // Subscribe to events if debug mode is enabled
-            if (isDebugMode){
+            #if DEBUG
+                if (processNow)
+                {
+                    Console.WriteLine("Running one-time processing...");
+                    var processor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
+                    processor.ProcessNowAsync().Wait();
+                    Console.WriteLine("Processing complete.");
+                    return;
+                }
+
                 keyboardTracker.TextCaptured += (sender, text) =>
                 {
                     Console.WriteLine($"Keyboard captured: {text}");
@@ -81,7 +99,7 @@ namespace LlmEmbeddingsCpu.App
                     Console.WriteLine(e.WindowHandle);
                     Console.ResetColor();
                 };
-            }
+            #endif
             
             // Start tracking
             keyboardTracker.StartTracking();
@@ -102,6 +120,17 @@ namespace LlmEmbeddingsCpu.App
             windowTracker.StopTracking();
             scheduledProcessor.StopScheduledProcessingAsync().Wait();
         }
+
+        private static Serilog.Events.LogEventLevel MapLogLevel(LogLevel level) => level switch
+        {
+            LogLevel.Trace => Serilog.Events.LogEventLevel.Verbose,
+            LogLevel.Debug => Serilog.Events.LogEventLevel.Debug,
+            LogLevel.Information => Serilog.Events.LogEventLevel.Information,
+            LogLevel.Warning => Serilog.Events.LogEventLevel.Warning,
+            LogLevel.Error => Serilog.Events.LogEventLevel.Error,
+            LogLevel.Critical => Serilog.Events.LogEventLevel.Fatal,
+            _ => Serilog.Events.LogEventLevel.Information
+        };
         
         private static ServiceProvider ConfigureServices(string logDir = "logs", LogLevel minLogLevel = LogLevel.Debug)
         {

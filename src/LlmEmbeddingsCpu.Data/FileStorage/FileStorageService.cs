@@ -30,6 +30,11 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             _logger.LogInformation("Storing logs in: {BasePath}", _basePath);
         }
 
+        public string GetFullPath(string filename)
+        {
+            return Path.Combine(_basePath, filename);
+        }
+
         /// <summary>
         /// Asynchronously writes content to a file, either overwriting or appending.
         /// Uses File.WriteAllTextAsync or File.AppendAllTextAsync for non-blocking I/O.
@@ -97,33 +102,48 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                           .Select(f => Path.GetFileName(f));
         }
 
-        /// <summary>
-        /// Renames a file.
-        /// Includes checks for existence.
-        /// </summary>
-        public void RenameFile(string oldName, string newName)
+        public void MoveFile(string oldName, string newName)
         {
             string oldPath = Path.Combine(_basePath, oldName);
             string newPath = Path.Combine(_basePath, newName);
 
             if (!File.Exists(oldPath))
-            {
                 throw new FileNotFoundException($"File not found: {oldName}", oldPath);
-            }
 
             if (File.Exists(newPath))
-            {
                 throw new IOException($"File already exists: {newName}");
-            }
 
             try
             {
                 File.Move(oldPath, newPath);
-                _logger.LogInformation("Renamed '{OldName}' to '{NewName}'", oldName, newName);
+                _logger.LogInformation("Moved '{OldName}' to '{NewName}'", oldName, newName);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error renaming file from '{OldName}' to '{NewName}': {ErrorMessage}", oldName, newName, ex.Message);
+                _logger.LogError("Error moving file from '{OldName}' to '{NewName}': {ErrorMessage}", oldName, newName, ex.Message);
+                throw;
+            }
+        }
+
+        public void MoveFolder(string oldFolderName, string newFolderName)
+        {
+            string oldPath = Path.Combine(_basePath, oldFolderName);
+            string newPath = Path.Combine(_basePath, newFolderName);
+
+            if (!Directory.Exists(oldPath))
+                throw new DirectoryNotFoundException($"Directory not found: {oldFolderName}");
+
+            if (Directory.Exists(newPath))
+                throw new IOException($"Target directory already exists: {newFolderName}");
+
+            try
+            {
+                Directory.Move(oldPath, newPath);
+                _logger.LogInformation("Moved directory '{OldPath}' to '{NewPath}'", oldPath, newPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("Error moving directory from '{OldPath}' to '{NewPath}': {ErrorMessage}", oldPath, newPath, ex.Message);
                 throw;
             }
         }
@@ -135,6 +155,18 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
         {
             string fullPath = Path.Combine(_basePath, filename);
             return File.Exists(fullPath);
+        }
+
+        public bool CheckIfDirectoryExists(string directoryName)
+        {
+            string fullPath = Path.Combine(_basePath, directoryName);
+            return Directory.Exists(fullPath);
+        }
+
+        public void DeleteFile(string filename)
+        {
+            string fullPath = Path.Combine(_basePath, filename);
+            File.Delete(fullPath);
         }
 
         /// <summary>

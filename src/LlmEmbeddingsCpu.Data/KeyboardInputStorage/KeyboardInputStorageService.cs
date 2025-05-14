@@ -14,15 +14,15 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 
         private readonly ILogger<KeyboardInputStorageService> _logger = logger;
 
-        private string GetCurrentFileName()
+        public string GetFilePath(DateTime date)
         {
-            string timestamp = DateTime.Now.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_keyboardLogBaseFileName}-{timestamp}.txt";
         }
 
         public async Task SaveLogAsync(KeyboardInputLog log)
         {
-            string fileName = GetCurrentFileName();
+            string fileName = GetFilePath(DateTime.Now);
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content}";
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
@@ -131,14 +131,14 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         {
             try
             {
-                string keyboardFileName = $"{_keyboardLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+                string keyboardFileName = GetFilePath(date);
 
                 bool keyboardFileExists = _fileStorageService.CheckIfFileExists(keyboardFileName);
 
                 if (!keyboardFileExists)
                 {
                     _logger.LogError("No log files found for date: {Date}", date);
-                    throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
+                    return;
                 }
 
                 RenameToDeleted(keyboardFileName);
@@ -172,7 +172,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 }
 
                 // Move the file to the deleted directory
-                _fileStorageService.RenameFile(fileName, newFileName);
+                _fileStorageService.MoveFile(fileName, newFileName);
                 
                 _logger.LogInformation("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
             }

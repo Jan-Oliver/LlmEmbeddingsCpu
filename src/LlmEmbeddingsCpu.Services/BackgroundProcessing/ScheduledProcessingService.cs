@@ -1,10 +1,15 @@
 using System.Timers;
+using System.IO;
+using System.IO.Compression;
 using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Core.Interfaces;
 using LlmEmbeddingsCpu.Core.Models;
 using LlmEmbeddingsCpu.Data.EmbeddingStorage;
 using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
 using Microsoft.Extensions.Logging;
+using LlmEmbeddingsCpu.Data.MouseInputStorage;
+using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+using LlmEmbeddingsCpu.Data.FileStorage;
 
 namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
 {
@@ -13,21 +18,35 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
         private readonly IEmbeddingService _embeddingService;
         private readonly EmbeddingStorageService _embeddingStorageService;
         private readonly KeyboardInputStorageService _keyboardInputStorageService;
+        private readonly MouseInputStorageService _mouseInputStorageService;
+        private readonly WindowMonitorStorageService _windowMonitorStorageService;
+
+        private readonly FileStorageService _fileStorageService;
         private readonly System.Timers.Timer _timer;
         private TimeSpan _scheduleTime;
         private readonly SemaphoreSlim _processingLock = new(1, 1);
         private readonly ILogger<ScheduledProcessingService> _logger;
 
+        private readonly string _uploadPath = "upload-queue";
+
+        private readonly string _archivePath = "archives";
+
         public ScheduledProcessingService(
             ILogger<ScheduledProcessingService> logger,
             IEmbeddingService embeddingService,
             EmbeddingStorageService embeddingStorageService,
-            KeyboardInputStorageService keyboardInputStorageService)
+            KeyboardInputStorageService keyboardInputStorageService,
+            MouseInputStorageService mouseInputStorageService,
+            WindowMonitorStorageService windowMonitorStorageService,
+            FileStorageService fileStorageService)
         {
             _logger = logger;
             _embeddingService = embeddingService;
             _embeddingStorageService = embeddingStorageService;
             _keyboardInputStorageService = keyboardInputStorageService;
+            _mouseInputStorageService = mouseInputStorageService;
+            _windowMonitorStorageService = windowMonitorStorageService;
+            _fileStorageService = fileStorageService;
             _timer = new System.Timers.Timer(60000); // Check every minute
             _timer.Elapsed += OnTimerElapsed;
         }
@@ -72,14 +91,27 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                 _logger.LogInformation("Starting text processing...");
                 
                 // Get all dates that need processing
-                var datesToProcess = _keyboardInputStorageService.GetDatesToProcess();
+                var datesToProcessKeyboard = _keyboardInputStorageService.GetDatesToProcess();
+                var datesToProcessMouse = _mouseInputStorageService.GetDatesToProcess();
+                var datesToProcessWindowMonitor = _windowMonitorStorageService.GetDatesToProcess();
+
+                // Fuse the dates to have all unique dates
+                // Logic or, not union
+                var datesToProcess = datesToProcessKeyboard
+                    .Concat(datesToProcessMouse)
+                    .Concat(datesToProcessWindowMonitor)
+                    .Distinct()
+                    .ToList();
+
+
+                _logger.LogInformation("Found {DateCount} dates to process", datesToProcess.Count);
+                _logger.LogInformation("Dates to process: {Dates}", string.Join(", ", datesToProcess));
                 
-                _logger.LogInformation("Found {DateCount} dates to process", datesToProcess.Count());
-                
-                foreach (var dateToProcess in datesToProcess)
+                foreach (var dateToProcess in datesToProcessKeyboard)
                 {
-                    _logger.LogInformation("Processing date: {Date}", dateToProcess);
+                    _logger.LogInformation("Processing keyboard inputs for date: {Date}", dateToProcess);
                     
+                    // Check if there are logs for this date
                     // Get logs for this date
                     var logs = await _keyboardInputStorageService.GetPreviousLogsAsync(dateToProcess);
                     var keyboardLogs = logs.Select(log => log.Content).ToList();
@@ -104,15 +136,20 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     _logger.LogInformation("Generated {EmbeddingCount} embeddings", embeddings.Count);
                     
                     // Save embeddings
-                    await _embeddingStorageService.SaveEmbeddingsAsync(embeddings, dateToProcess.ToString("yyyy-MM-dd"));
-                    
-                    // Archive logs for this date
-                    ArchiveProcessedLogsAsync(dateToProcess);
+                    await _embeddingStorageService.SaveEmbeddingsAsync(embeddings, dateToProcess);
                     
                     _logger.LogInformation("Completed processing for date {Date}", dateToProcess);
                 }
+
+                foreach (var dateToProcess in datesToProcess)
+                {
+                    _logger.LogInformation("Creating archive for date: {Date}", dateToProcess);
+                    
+                    UploadData(dateToProcess);
+                }
                 
                 _logger.LogInformation("Text processing completed successfully");
+                Console.WriteLine("Text processing completed successfully");
             }
             catch (Exception ex)
             {
@@ -125,16 +162,58 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
-        private void ArchiveProcessedLogsAsync(DateTime date)
+
+        private void UploadData(DateTime date)
         {
             try
             {
-                _keyboardInputStorageService.MarkFileAsDeleted(date);
-                _logger.LogInformation("Archived logs for {Date}", date);
+                Console.WriteLine("Creating daily archive for date: " + date);
+                var hostname = Environment.MachineName;
+                var userId = Environment.UserName;
+                var dateStr = date.ToString("yyyy-MM-dd");
+
+                var uploadPath = Path.Combine(_uploadPath, $"{hostname}-{userId}-{dateStr}");
+                _logger.LogInformation("Upload path: {UploadPath}", uploadPath);
+                _fileStorageService.EnsureDirectoryExists(uploadPath);
+
+                // Move the window monitor logs to the deleted directory
+                var windowMonitorLogFilePath = _windowMonitorStorageService.GetFilePath(date);
+                var windowMonitorLogExists = _fileStorageService.CheckIfFileExists(windowMonitorLogFilePath);
+                var windowMonitorLogUploadFilePath = Path.Combine(uploadPath, "window_monitor_logs.txt");
+                if (windowMonitorLogExists) {
+                    _logger.LogInformation("Moving window monitor log to upload path: {WindowMonitorLogUploadFilePath}", windowMonitorLogUploadFilePath);
+                    _fileStorageService.MoveFile(windowMonitorLogFilePath, windowMonitorLogUploadFilePath);
+                }
+
+                // Delete the keyboard logs
+                var keyboardLogFilePath = _keyboardInputStorageService.GetFilePath(date);
+                var keyboardLogExists = _fileStorageService.CheckIfFileExists(keyboardLogFilePath);
+                if (keyboardLogExists) {
+                    _logger.LogInformation("Moving keyboard log to upload path: {KeyboardLogUploadFilePath}", keyboardLogFilePath);
+                    _keyboardInputStorageService.MarkFileAsDeleted(date);
+                }
+                
+                // Move the mouse logs to the upload directory
+                var mouseLogFilePath = _mouseInputStorageService.GetFilePath(date);
+                var mouseLogExists = _fileStorageService.CheckIfFileExists(mouseLogFilePath);
+                var mouseLogUploadFilePath = Path.Combine(uploadPath, "mouse_logs.txt");
+                if (mouseLogExists) {
+                    _logger.LogInformation("Moving mouse log to upload path: {MouseLogUploadFilePath}", mouseLogUploadFilePath);
+                    _fileStorageService.MoveFile(mouseLogFilePath, mouseLogUploadFilePath);
+                }
+
+                // Move the embeddings folder to the upload directory
+                var embeddingsDir = _embeddingStorageService.GetFolderPath(date);
+                var embeddingsDirExists = _fileStorageService.CheckIfDirectoryExists(embeddingsDir);
+                var embeddingsUploadDir = Path.Combine(uploadPath, "embeddings");
+                if (embeddingsDirExists) {
+                    _logger.LogInformation("Moving embeddings folder to upload path: {EmbeddingsUploadDir}", embeddingsUploadDir);
+                    _fileStorageService.MoveFolder(embeddingsDir, embeddingsUploadDir);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error archiving logs for {Date}: {ErrorMessage}", date, ex.Message);
+                _logger.LogError("Failed to create ZIP archive: {ErrorMessage}", ex.Message);
             }
         }
 

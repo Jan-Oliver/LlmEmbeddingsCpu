@@ -16,7 +16,6 @@ dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj
 ```
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-x64
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64
-
 ```
 
 ## Build

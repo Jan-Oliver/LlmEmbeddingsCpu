@@ -12,15 +12,15 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
         private readonly string _windowMonitorLogBaseFileName = "window_monitor_logs";
         private readonly ILogger<WindowMonitorStorageService> _logger = logger;
 
-        private string GetCurrentFileName()
+        public string GetFilePath(DateTime date)
         {
-            string timestamp = DateTime.Now.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_windowMonitorLogBaseFileName}-{timestamp}.txt";
         }
 
         public async Task SaveLogAsync(ActiveWindowLog log)
         {
-            string fileName = GetCurrentFileName();
+            string fileName = GetFilePath(DateTime.Now);
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.WindowTitle}|{log.WindowHandle}|{log.ProcessName}";
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
@@ -66,7 +66,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
         {
             try
             {
-                string windowMonitorFileName = GetCurrentFileName();
+                string windowMonitorFileName = GetFilePath(date);
 
                 var logs = new List<ActiveWindowLog>();
                 
@@ -162,57 +162,6 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
 
                 if (log != null)
                     yield return log;
-            }
-        }
-
-        public void MarkFileAsDeleted(DateTime date)
-        {
-            try
-            {
-                string windowMonitorFileName = GetCurrentFileName();
-
-                bool windowMonitorExists = _fileStorageService.CheckIfFileExists(windowMonitorFileName);
-
-                if (!windowMonitorExists)
-                {
-                    throw new FileNotFoundException($"No log files found for date: {date:yyyy-MM-dd}");
-                }
-
-                RenameToDeleted(windowMonitorFileName);
-            }
-            catch (Exception ex) when (ex is not FileNotFoundException)
-            {
-                throw new InvalidOperationException($"Error marking files as deleted: {ex.Message}", ex);
-            }
-        }
-
-        private void RenameToDeleted(string fileName)
-        {
-            try
-            {
-                // Create logs-deleted directory if it doesn't exist
-                string deletedDir = "logs-deleted";
-                _fileStorageService.EnsureDirectoryExists(deletedDir);
-
-                string newFileName = Path.Combine(deletedDir, fileName);
-                
-                // If file already exists in deleted directory, append timestamp to make it unique
-                if (_fileStorageService.CheckIfFileExists(newFileName))
-                {
-                    string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-                    string ext = Path.GetExtension(fileName);
-                    string timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    newFileName = Path.Combine(deletedDir, $"{fileNameWithoutExt}-{timestamp}{ext}");
-                }
-
-                // Move the file to the deleted directory
-                _fileStorageService.RenameFile(fileName, newFileName);
-                
-                Console.WriteLine($"Successfully moved {fileName} to {newFileName}");
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidOperationException($"Error moving file {fileName} to deleted directory: {ex.Message}", ex);
             }
         }
     }

@@ -30,8 +30,14 @@
     </None>
   </ItemGroup>
 
-  <PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <OutputType>WinExe</OutputType>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
     <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
     <ImplicitUsings>enable</ImplicitUsings>
