@@ -63,9 +63,6 @@ begin
 end;
 
 
-; ----------------------------------------------------------------------
-; Run tasks after copying files
-; ----------------------------------------------------------------------
 [Run]
 ; --- First, run the ARM64 VC++ Redistributable installer if needed. ---
 Filename: "{tmp}\VC_redist.arm64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Microsoft VC++ Runtime (ARM64)..."; Check: ShouldInstallVcRedist
