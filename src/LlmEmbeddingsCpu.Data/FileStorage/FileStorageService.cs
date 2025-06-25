@@ -2,12 +2,20 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.FileStorage
 {
+    /// <summary>
+    /// Provides services for file storage operations such as reading, writing, and moving files.
+    /// </summary>
     public class FileStorageService
     {
         private readonly string _basePath;
 
         private readonly ILogger<FileStorageService> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FileStorageService"/> class.
+        /// </summary>
+        /// <param name="basePath">The base path for file storage. If not provided, a default 'logs' directory is used.</param>
+        /// <param name="logger">The logger instance for logging messages.</param>
         public FileStorageService(string basePath, ILogger<FileStorageService> logger)
         {
             _logger = logger;
@@ -30,6 +38,11 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             _logger.LogInformation("Storing logs in: {BasePath}", _basePath);
         }
 
+        /// <summary>
+        /// Gets the full path for a given filename within the base storage directory.
+        /// </summary>
+        /// <param name="filename">The name of the file.</param>
+        /// <returns>The full path to the file.</returns>
         public string GetFullPath(string filename)
         {
             return Path.Combine(_basePath, filename);
@@ -37,7 +50,6 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
 
         /// <summary>
         /// Asynchronously writes content to a file, either overwriting or appending.
-        /// Uses File.WriteAllTextAsync or File.AppendAllTextAsync for non-blocking I/O.
         /// </summary>
         /// <param name="filename">The name of the file (relative to the base path).</param>
         /// <param name="content">The content to write.</param>
@@ -67,7 +79,6 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
 
         /// <summary>
         /// Asynchronously reads the entire text content from a file if it exists.
-        /// Uses File.ReadAllTextAsync for non-blocking I/O.
         /// </summary>
         /// <param name="filename">The name of the file (relative to the base path).</param>
         /// <returns>The content of the file, or an empty string if the file does not exist or an error occurs.</returns>
@@ -94,14 +105,20 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
 
         /// <summary>
         /// Lists files matching a pattern in the base directory.
-        /// Directory.GetFiles is synchronous (no async counterpart).
         /// </summary>
+        /// <param name="pattern">The search pattern to match against the names of files.</param>
+        /// <returns>An enumerable collection of the full names (including paths) for the files in the directory that match the specified search pattern.</returns>
         public IEnumerable<string> ListFiles(string pattern)
         {
             return Directory.GetFiles(_basePath, pattern)
                           .Select(f => Path.GetFileName(f));
         }
 
+        /// <summary>
+        /// Moves a file to a new location.
+        /// </summary>
+        /// <param name="oldName">The name of the file to move.</param>
+        /// <param name="newName">The new name for the file.</param>
         public void MoveFile(string oldName, string newName)
         {
             string oldPath = Path.Combine(_basePath, oldName);
@@ -125,6 +142,11 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             }
         }
 
+        /// <summary>
+        /// Moves a folder to a new location.
+        /// </summary>
+        /// <param name="oldFolderName">The name of the folder to move.</param>
+        /// <param name="newFolderName">The new name for the folder.</param>
         public void MoveFolder(string oldFolderName, string newFolderName)
         {
             string oldPath = Path.Combine(_basePath, oldFolderName);
@@ -149,20 +171,31 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
         }
 
         /// <summary>
-        /// Checks if a file exists. File.Exists is synchronous (no async counterpart).
+        /// Checks if a file exists.
         /// </summary>
+        /// <param name="filename">The name of the file to check.</param>
+        /// <returns>True if the file exists; otherwise, false.</returns>
         public bool CheckIfFileExists(string filename)
         {
             string fullPath = Path.Combine(_basePath, filename);
             return File.Exists(fullPath);
         }
 
+        /// <summary>
+        /// Checks if a directory exists.
+        /// </summary>
+        /// <param name="directoryName">The name of the directory to check.</param>
+        /// <returns>True if the directory exists; otherwise, false.</returns>
         public bool CheckIfDirectoryExists(string directoryName)
         {
             string fullPath = Path.Combine(_basePath, directoryName);
             return Directory.Exists(fullPath);
         }
 
+        /// <summary>
+        /// Deletes the specified file.
+        /// </summary>
+        /// <param name="filename">The name of the file to be deleted.</param>
         public void DeleteFile(string filename)
         {
             string fullPath = Path.Combine(_basePath, filename);
@@ -170,9 +203,9 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
         }
 
         /// <summary>
-        /// Ensures a subdirectory exists within the base path.
-        /// Directory.Exists and Directory.CreateDirectory are synchronous (no async counterparts).
+        /// Ensures that a directory exists, creating it if it does not.
         /// </summary>
+        /// <param name="path">The path of the directory to check and create.</param>
         public void EnsureDirectoryExists(string path)
         {
             string fullPath = Path.Combine(_basePath, path);

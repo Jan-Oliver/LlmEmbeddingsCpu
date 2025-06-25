@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
 {
+    /// <summary>
+    /// Manages the storage and retrieval of active window logs.
+    /// </summary>
     public class WindowMonitorStorageService(FileStorageService fileStorageService,
         ILogger<WindowMonitorStorageService> logger)
     {
@@ -12,12 +15,22 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
         private readonly string _windowMonitorLogBaseFileName = "window_monitor_logs";
         private readonly ILogger<WindowMonitorStorageService> _logger = logger;
 
+        /// <summary>
+        /// Generates a file path for a window monitor log file based on the specified date.
+        /// </summary>
+        /// <param name="date">The date for the log file.</param>
+        /// <returns>A string representing the file path.</returns>
         public string GetFilePath(DateTime date)
         {
             string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_windowMonitorLogBaseFileName}-{timestamp}.txt";
         }
 
+        /// <summary>
+        /// Asynchronously saves an active window log to a file.
+        /// </summary>
+        /// <param name="log">The <see cref="ActiveWindowLog"/> to save.</param>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task SaveLogAsync(ActiveWindowLog log)
         {
             string fileName = GetFilePath(DateTime.Now);
@@ -28,6 +41,10 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
+        /// <summary>
+        /// Retrieves a collection of dates for which window monitor log files exist and are ready to be processed.
+        /// </summary>
+        /// <returns>An <see cref="IEnumerable{DateTime}"/> of dates to process.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
             var files = _fileStorageService.ListFiles("*.txt");
@@ -62,6 +79,11 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                 .OrderBy(d => d);
         }
 
+        /// <summary>
+        /// Asynchronously retrieves all active window logs for a specific date.
+        /// </summary>
+        /// <param name="date">The date for which to retrieve logs.</param>
+        /// <returns>A <see cref="Task{IEnumerable{ActiveWindowLog}}"/> containing the logs for the specified date.</returns>
         public async Task<IEnumerable<ActiveWindowLog>> GetPreviousLogAsync(DateTime date)
         {
             try
@@ -91,6 +113,12 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
             }
         }
 
+        /// <summary>
+        /// Parses active window logs from the provided string content.
+        /// </summary>
+        /// <param name="content">The string content of the log file.</param>
+        /// <param name="fileDate">The date of the log file.</param>
+        /// <returns>An <see cref="IEnumerable{ActiveWindowLog}"/> of parsed logs.</returns>
         private IEnumerable<ActiveWindowLog> ParseLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))

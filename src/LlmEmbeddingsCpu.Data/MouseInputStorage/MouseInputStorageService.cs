@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.MouseInputStorage
 {
+    /// <summary>
+    /// Manages the storage and retrieval of mouse input logs.
+    /// </summary>
     public class MouseInputStorageService(
         FileStorageService fileStorageService,
         ILogger<MouseInputStorageService> logger)
@@ -13,12 +16,22 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         private readonly string _mouseLogBaseFileName = "mouse_logs";
         private readonly ILogger<MouseInputStorageService> _logger = logger;
 
+        /// <summary>
+        /// Generates a file path for a mouse log file based on the specified date.
+        /// </summary>
+        /// <param name="date">The date for the log file.</param>
+        /// <returns>A string representing the file path.</returns>
         public string GetFilePath(DateTime date)
         {
             string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_mouseLogBaseFileName}-{timestamp}.txt";
         }
 
+        /// <summary>
+        /// Asynchronously saves a mouse input log to a file.
+        /// </summary>
+        /// <param name="log">The <see cref="MouseInputLog"/> to save.</param>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task SaveLogAsync(MouseInputLog log)
         {
             string fileName = GetFilePath(DateTime.Now);
@@ -29,6 +42,10 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
+        /// <summary>
+        /// Retrieves a collection of dates for which mouse log files exist and are ready to be processed.
+        /// </summary>
+        /// <returns>An <see cref="IEnumerable{DateTime}"/> of dates to process.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
             var files = _fileStorageService.ListFiles("*.txt");
@@ -63,6 +80,11 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                 .OrderBy(d => d);
         }
 
+        /// <summary>
+        /// Asynchronously retrieves all mouse input logs for a specific date.
+        /// </summary>
+        /// <param name="date">The date for which to retrieve logs.</param>
+        /// <returns>A <see cref="Task{IEnumerable{MouseInputLog}}"/> containing the logs for the specified date.</returns>
         public async Task<IEnumerable<MouseInputLog>> GetPreviousLogAsync(DateTime date)
         {
             try
@@ -92,6 +114,12 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             }
         }
 
+        /// <summary>
+        /// Parses mouse input logs from the provided string content.
+        /// </summary>
+        /// <param name="content">The string content of the log file.</param>
+        /// <param name="fileDate">The date of the log file.</param>
+        /// <returns>An <see cref="IEnumerable{MouseInputLog}"/> of parsed logs.</returns>
         private IEnumerable<MouseInputLog> ParseLogsFromContent(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))

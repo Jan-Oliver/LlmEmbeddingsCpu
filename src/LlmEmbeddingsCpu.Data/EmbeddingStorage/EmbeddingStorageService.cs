@@ -6,18 +6,31 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
 {
+    /// <summary>
+    /// Manages the storage and retrieval of embedding data.
+    /// </summary>
     public class EmbeddingStorageService(FileStorageService fileStorageService, ILogger<EmbeddingStorageService> logger)
     {
         private readonly FileStorageService _fileStorageService = fileStorageService;
         private readonly string _embeddingDirectoryName = "embeddings";
         private readonly ILogger<EmbeddingStorageService> _logger = logger;
 
+        /// <summary>
+        /// Gets the folder path for storing embeddings for a specific date.
+        /// </summary>
+        /// <param name="date">The date for which to get the folder path.</param>
+        /// <returns>The folder path for the specified date.</returns>
         public string GetFolderPath(DateTime date)
         {
             string dateStr = date.ToString("yyyy-MM-dd");
             return Path.Combine(_embeddingDirectoryName, dateStr);
         }
 
+        /// <summary>
+        /// Asynchronously saves a single embedding to a file.
+        /// </summary>
+        /// <param name="embedding">The embedding to save.</param>
+        /// <param name="date">The date to use for storing the embedding.</param>
         public async Task SaveEmbeddingAsync(Embedding embedding, DateTime date)
         {
             try
@@ -44,6 +57,11 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
         }
 
+        /// <summary>
+        /// Asynchronously saves a collection of embeddings.
+        /// </summary>
+        /// <param name="embeddings">The embeddings to save.</param>
+        /// <param name="date">The date to use for storing the embeddings.</param>
         public async Task SaveEmbeddingsAsync(IEnumerable<Embedding> embeddings, DateTime date)
         {
             try
@@ -74,6 +92,11 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             }
         }
 
+        /// <summary>
+        /// Asynchronously retrieves all embeddings for a given date.
+        /// </summary>
+        /// <param name="date">The date for which to retrieve embeddings.</param>
+        /// <returns>An enumerable of embeddings for the specified date.</returns>
         public async Task<IEnumerable<Embedding>> GetEmbeddingsAsync(DateTime date)
         {
             try

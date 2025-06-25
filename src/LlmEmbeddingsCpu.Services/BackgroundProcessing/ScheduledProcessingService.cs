@@ -13,6 +13,9 @@ using LlmEmbeddingsCpu.Data.FileStorage;
 
 namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
 {
+    /// <summary>
+    /// Manages a scheduled background service to process and archive user activity logs.
+    /// </summary>
     public class ScheduledProcessingService: IDisposable
     {
         private readonly IEmbeddingService _embeddingService;
@@ -31,6 +34,9 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
 
         private readonly string _archivePath = "archives";
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ScheduledProcessingService"/> class.
+        /// </summary>
         public ScheduledProcessingService(
             ILogger<ScheduledProcessingService> logger,
             IEmbeddingService embeddingService,
@@ -51,6 +57,10 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             _timer.Elapsed += OnTimerElapsed;
         }
 
+        /// <summary>
+        /// Schedules the daily processing task at a specified time.
+        /// </summary>
+        /// <param name="timeOfDay">The time of day to run the processing task.</param>
         public void ScheduleProcessingAsync(TimeSpan timeOfDay)
         {
             _scheduleTime = timeOfDay;
@@ -69,6 +79,9 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             _logger.LogInformation("First run in {TimeUntilFirstRun:hh\\:mm\\:ss}", timeUntilFirstRun);
         }
 
+        /// <summary>
+        /// Called when the timer elapses to check if processing should be initiated.
+        /// </summary>
         private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
         {
             // Check if it's time to process
@@ -82,6 +95,10 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
+        /// <summary>
+        /// Initiates the processing of logs and generation of embeddings immediately.
+        /// </summary>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task ProcessNowAsync()
         {
             try
@@ -161,7 +178,10 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
-
+        /// <summary>
+        /// Prepares the data for a given date for upload by moving it to a designated upload directory.
+        /// </summary>
+        /// <param name="date">The date of the data to be prepared for upload.</param>
         private void UploadData(DateTime date)
         {
             try
@@ -216,12 +236,19 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
             }
         }
 
+        /// <summary>
+        /// Stops the scheduled processing task.
+        /// </summary>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task StopScheduledProcessingAsync()
         {
             _timer.Stop();
             await Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Releases the resources used by the service.
+        /// </summary>
         public void Dispose()
         {
             _timer?.Dispose();

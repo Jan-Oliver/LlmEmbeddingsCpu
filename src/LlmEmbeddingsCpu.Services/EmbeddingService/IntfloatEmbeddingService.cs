@@ -10,6 +10,9 @@ using LlmEmbeddingsCpu.Core.Models;
 
 namespace LlmEmbeddingsCpu.Services.EmbeddingService
 {
+    /// <summary>
+    /// Provides a service for generating text embeddings using the intfloat/multilingual-e5-small ONNX model.
+    /// </summary>
     public class IntfloatEmbeddingService : IEmbeddingService
     {
         private readonly Tokenizers.DotNet.Tokenizer _tokenizer;
@@ -21,6 +24,13 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         private readonly string _modelName;
         private readonly ILogger<IntfloatEmbeddingService> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="IntfloatEmbeddingService"/> class.
+        /// </summary>
+        /// <param name="logger">The logger instance.</param>
+        /// <param name="modelName">The name of the ONNX model.</param>
+        /// <param name="embeddingSize">The size of the embedding vector.</param>
+        /// <param name="maxSequenceLength">The maximum sequence length for the model.</param>
         public IntfloatEmbeddingService(
             ILogger<IntfloatEmbeddingService> logger,
             string modelName = "multilingual-e5-small", 
@@ -63,18 +73,31 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             //_session = new InferenceSession(modelPath, sessionOptions);
         }
 
+        /// <summary>
+        /// Gets the root directory of the application.
+        /// </summary>
+        /// <returns>The root directory path.</returns>
         private static string GetRootDirectory()
         {
             return AppDomain.CurrentDomain.BaseDirectory;
         }
 
-        // ─────────────────────────────────────────────────────── public API
+        /// <summary>
+        /// Asynchronously generates an embedding for a single keyboard input log.
+        /// </summary>
+        /// <param name="keyboardInputLog">The keyboard input log.</param>
+        /// <returns>A <see cref="Task{Embedding}"/> representing the asynchronous operation, containing the generated embedding.</returns>
         public async Task<Core.Models.Embedding> GenerateEmbeddingAsync(KeyboardInputLog keyboardInputLog)
         {
             var list = await GenerateEmbeddingsAsync(new[] { keyboardInputLog });
             return list.First();
         }
 
+        /// <summary>
+        /// Asynchronously generates embeddings for a collection of keyboard input logs.
+        /// </summary>
+        /// <param name="keyboardInputLogs">The collection of keyboard input logs.</param>
+        /// <returns>A <see cref="Task{IEnumerable{Embedding}}"/> representing the asynchronous operation, containing the generated embeddings.</returns>
         public async Task<IEnumerable<Core.Models.Embedding>> GenerateEmbeddingsAsync(IEnumerable<KeyboardInputLog> keyboardInputLogs)
         {
             return await Task.Run(() =>
@@ -103,6 +126,11 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             });
         }
 
+        /// <summary>
+        /// Preprocesses the input text by removing excess whitespace and adding a prefix.
+        /// </summary>
+        /// <param name="text">The text to preprocess.</param>
+        /// <returns>The preprocessed text.</returns>
         private static string PreprocessText(string text)
         {
             // Remove excess whitespace
@@ -114,6 +142,12 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             return text;
         }
 
+        /// <summary>
+        /// Generates an embedding vector from a sequence of tokens using the ONNX model.
+        /// </summary>
+        /// <param name="session">The ONNX inference session.</param>
+        /// <param name="tokens">The input tokens.</param>
+        /// <returns>A float array representing the embedding vector.</returns>
         private float[] GenerateEmbeddingVector(InferenceSession session,uint[] tokens)
         {
             // Note: If we want to implement batching, we need to 
@@ -202,7 +236,14 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             }
         }
         
-        // Mean pooling implementation
+        /// <summary>
+        /// Performs mean pooling on the model output to get a fixed-size embedding.
+        /// </summary>
+        /// <param name="modelOutput">The output tensor from the model.</param>
+        /// <param name="attentionMask">The attention mask tensor.</param>
+        /// <param name="seqLength">The sequence length.</param>
+        /// <param name="embeddingSize">The embedding size.</param>
+        /// <returns>A float array representing the pooled embedding.</returns>
         private static float[] MeanPooling(Tensor<float> modelOutput, Tensor<long> attentionMask, int seqLength, int embeddingSize)
         {
             float[] result = new float[embeddingSize];
@@ -233,7 +274,10 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
             return result;
         }
         
-        // L2 normalization function
+        /// <summary>
+        /// Normalizes a vector using L2 normalization.
+        /// </summary>
+        /// <param name="vector">The vector to normalize.</param>
         private static void NormalizeL2(float[] vector)
         {
             float squaredSum = 0;

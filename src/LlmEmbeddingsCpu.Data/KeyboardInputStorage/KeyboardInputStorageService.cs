@@ -7,6 +7,10 @@ using LlmEmbeddingsCpu.Common.Extensions;
 
 namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 {
+    /// <summary>
+    /// Manages the storage and retrieval of keyboard input logs.
+    /// Handles encryption, file naming, and log parsing.
+    /// </summary>
     public class KeyboardInputStorageService(
         FileStorageService fileStorageService,
         ILogger<KeyboardInputStorageService> logger)
@@ -16,12 +20,22 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
 
         private readonly ILogger<KeyboardInputStorageService> _logger = logger;
 
+        /// <summary>
+        /// Generates the file path for a keyboard log file based on a given date.
+        /// </summary>
+        /// <param name="date">The date for which to generate the file path.</param>
+        /// <returns>The formatted file path string.</returns>
         public string GetFilePath(DateTime date)
         {
             string timestamp = date.ToString("yyyy-MM-dd");
             return $"{_keyboardLogBaseFileName}-{timestamp}.txt";
         }
 
+        /// <summary>
+        /// Saves a keyboard input log to a file, encrypting the content before writing.
+        /// </summary>
+        /// <param name="log">The keyboard input log to save.</param>
+        /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         public async Task SaveLogAsyncAndEncrypt(KeyboardInputLog log)
         {
             string fileName = GetFilePath(DateTime.Now);
@@ -34,7 +48,13 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
 
-        // Get all dates that have to be processed. Only the dates, not the files.
+        /// <summary>
+        /// Retrieves a collection of unique dates for which keyboard log files exist and need to be processed.
+        /// </summary>
+        /// <remarks>
+        /// This method filters for log files from dates before the current day.
+        /// </remarks>
+        /// <returns>An <see cref="IEnumerable{DateTime}"/> containing the dates to be processed.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
             var files = _fileStorageService.ListFiles("*.txt");
@@ -69,7 +89,11 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 .OrderBy(d => d);
         }
 
-        // Get all logs for a given date.
+        /// <summary>
+        /// Retrieves and decrypts all keyboard input logs for a specific date from the corresponding log file.
+        /// </summary>
+        /// <param name="date">The date for which to retrieve the logs.</param>
+        /// <returns>A <see cref="Task{IEnumerable{KeyboardInputLog}}"/> containing the decrypted logs for the specified date.</returns>
         public async Task<IEnumerable<KeyboardInputLog>> GetPreviousLogsAsyncDecrypted(DateTime date)
         {
             try
@@ -101,7 +125,12 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             }
         }
 
-        // Parse the logs from the content.
+        /// <summary>
+        /// Parses keyboard log entries from a string content and decrypts them.
+        /// </summary>
+        /// <param name="content">The string content of the log file.</param>
+        /// <param name="fileDate">The date of the log file, used to construct the full timestamp.</param>
+        /// <returns>An <see cref="IEnumerable{KeyboardInputLog}"/> of the parsed and decrypted logs.</returns>
         private static IEnumerable<KeyboardInputLog> ParseKeyboardLogsFromContentAndDecrypt(string content, DateTime fileDate)
         {
             if (string.IsNullOrEmpty(content))
@@ -146,7 +175,10 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             }
         }
 
-        // Mark the file as deleted.
+        /// <summary>
+        /// Marks the log file for a specific date as deleted by moving it to a designated 'deleted' directory.
+        /// </summary>
+        /// <param name="date">The date of the log file to be marked as deleted.</param>
         public void MarkFileAsDeleted(DateTime date)
         {
             try
@@ -170,7 +202,13 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             }
         }
 
-        // Rename the file to the deleted directory.
+        /// <summary>
+        /// Renames and moves a given log file to the 'logs-deleted' directory.
+        /// </summary>
+        /// <remarks>
+        /// If a file with the same name already exists in the destination, it appends a timestamp to ensure uniqueness.
+        /// </remarks>
+        /// <param name="fileName">The name of the file to move.</param>
         private void RenameToDeleted(string fileName)
         {
             try

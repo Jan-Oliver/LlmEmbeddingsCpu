@@ -2,8 +2,16 @@ using System.ComponentModel.Design;
 
 namespace LlmEmbeddingsCpu.Common.Extensions
 {
+    /// <summary>
+    /// Provides extension methods for the <see cref="string"/> class.
+    /// </summary>
     public static class StringExtensions
     {
+        /// <summary>
+        /// Encrypts a string using the ROT13 cipher.
+        /// </summary>
+        /// <param name="input">The string to encrypt.</param>
+        /// <returns>The ROT13 encrypted string.</returns>
         public static string ToRot13(this string input)
         {
             if (string.IsNullOrEmpty(input))
@@ -33,7 +41,11 @@ namespace LlmEmbeddingsCpu.Common.Extensions
             return new string(result);
         }
 
-        // Since ROT13 is its own inverse, FromRot13 is the same as ToRot13
+        /// <summary>
+        /// Decrypts a string using the ROT13 cipher.
+        /// </summary>
+        /// <param name="input">The ROT13 encrypted string.</param>
+        /// <returns>The decrypted string.</returns>
         public static string FromRot13(this string input)
         {
             // ROT13 is symmetric, so encoding and decoding are the same operation

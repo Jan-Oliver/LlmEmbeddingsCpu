@@ -6,6 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.MouseMonitor
 {
+    /// <summary>
+    /// Monitors global mouse click events and logs them.
+    /// </summary>
     public class MouseMonitorService(
         MouseInputStorageService mouseInputStorageService,
         ILogger<MouseMonitorService> logger)
@@ -13,8 +16,15 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
         private IMouseEvents? _globalHook;
         private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
         private readonly ILogger<MouseMonitorService> _logger = logger;
+        
+        /// <summary>
+        /// Occurs when text is captured (not used in this implementation).
+        /// </summary>
         public event EventHandler<string>? TextCaptured;
 
+        /// <summary>
+        /// Starts monitoring global mouse click events.
+        /// </summary>
         public void StartTracking()
         {
             // Subscribe to global mouse events
@@ -23,6 +33,9 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             _logger.LogInformation("Mouse tracking started...");
         }
         
+        /// <summary>
+        /// Stops monitoring global mouse click events.
+        /// </summary>
         public void StopTracking()
         {
             if (_globalHook != null)
@@ -33,6 +46,9 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             _logger.LogInformation("Mouse tracking stopped.");
         }
 
+        /// <summary>
+        /// Handles the global mouse click event and logs the information.
+        /// </summary>
         private async void GlobalHook_MouseClick(object? sender, MouseEventArgs e)
         {
             // Create log entry

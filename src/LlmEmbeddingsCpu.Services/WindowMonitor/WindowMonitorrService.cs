@@ -7,6 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.WindowMonitor
 {
+    /// <summary>
+    /// Monitors for changes in the active foreground window and logs the window information.
+    /// </summary>
     public class WindowMonitorrService : IDisposable
     {
         // Delegate for the hook procedure
@@ -35,10 +38,17 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         private IntPtr _hookHandle = IntPtr.Zero;
         private readonly WinEventDelegate _eventDelegate; // Keep a reference to prevent GC
 
+        /// <summary>
+        /// Occurs when the active window changes.
+        /// </summary>
         public event EventHandler<ActiveWindowLog>? ActiveWindowChanged;
 
         private readonly WindowMonitorStorageService _windowMonitorStorageService;
         private readonly ILogger<WindowMonitorrService> _logger;
+        
+        /// <summary>
+        /// Initializes a new instance of the <see cref="WindowMonitorrService"/> class.
+        /// </summary>
         public WindowMonitorrService(
             ILogger<WindowMonitorrService> logger,
             WindowMonitorStorageService windowMonitorStorageService)
@@ -49,6 +59,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             _windowMonitorStorageService = windowMonitorStorageService;
         }
 
+        /// <summary>
+        /// Starts monitoring for active window changes.
+        /// </summary>
         public void StartTracking()
         {
             if (_hookHandle != IntPtr.Zero)
@@ -76,6 +89,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             _logger.LogInformation("Window tracking started...");
         }
 
+        /// <summary>
+        /// Stops monitoring for active window changes.
+        /// </summary>
         public void StopTracking()
         {
             if (_hookHandle != IntPtr.Zero)
@@ -86,6 +102,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             _logger.LogInformation("Window tracking stopped.");
         }
 
+        /// <summary>
+        /// The callback method for the window event hook.
+        /// </summary>
         private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             // Filter for EVENT_SYSTEM_FOREGROUND
@@ -127,8 +146,8 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         
         /// <summary>
         /// Gets information about the currently active foreground window.
-        /// Can be called independently if needed.
         /// </summary>
+        /// <returns>An <see cref="ActiveWindowLog"/> containing information about the active window.</returns>
         public static ActiveWindowLog GetCurrentActiveWindowInfo()
         {
              IntPtr currentHwnd = GetForegroundWindow();
@@ -136,7 +155,11 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
              return GetActiveWindowInfo(currentHwnd);
         }
 
-
+        /// <summary>
+        /// Gets information about a specific window handle.
+        /// </summary>
+        /// <param name="hWnd">The handle of the window.</param>
+        /// <returns>An <see cref="ActiveWindowLog"/> containing information about the window.</returns>
         private static ActiveWindowLog GetActiveWindowInfo(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero) return null;
@@ -177,6 +200,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             };
         }
 
+        /// <summary>
+        /// Disposes the window monitor and stops tracking.
+        /// </summary>
         public void Dispose()
         {
             StopTracking();

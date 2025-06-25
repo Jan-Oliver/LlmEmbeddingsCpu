@@ -16,8 +16,16 @@ using System.Windows.Forms;
 
 namespace LlmEmbeddingsCpu.App
 {
+    /// <summary>
+    /// The main entry point for the application.
+    /// </summary>
     class Program
     {
+        /// <summary>
+        /// The main entry point of the application.
+        /// Initializes logging, services, and starts the monitoring and processing tasks.
+        /// </summary>
+        /// <param name="args">Command-line arguments.</param>
         [STAThread]
         static void Main(string[] args)
         {
@@ -34,14 +42,10 @@ namespace LlmEmbeddingsCpu.App
                 Console.WriteLine("Log directory: " + logDirectory);
                 Console.WriteLine("Min log level: " + minLogLevel);
             #else
-                Console.WriteLine("RELEASE mode");
                 string logDirectory = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "LlmEmbeddingsCpu", "logs");
-                // TODO: Set the min log level to warning when we actually ship the app
-                LogLevel minLogLevel = LogLevel.Debug;
-                Console.WriteLine("Log directory: " + logDirectory);
-                Console.WriteLine("Min log level: " + minLogLevel);
+                LogLevel minLogLevel = LogLevel.Warning;
             #endif
 
             Directory.CreateDirectory(logDirectory);
@@ -99,6 +103,11 @@ namespace LlmEmbeddingsCpu.App
             scheduledProcessor.StopScheduledProcessingAsync().Wait();
         }
 
+        /// <summary>
+        /// Maps the Microsoft.Extensions.Logging.LogLevel to the Serilog.Events.LogEventLevel.
+        /// </summary>
+        /// <param name="level">The Microsoft.Extensions.Logging.LogLevel.</param>
+        /// <returns>The corresponding Serilog.Events.LogEventLevel.</returns>
         private static Serilog.Events.LogEventLevel MapLogLevel(LogLevel level) => level switch
         {
             LogLevel.Trace => Serilog.Events.LogEventLevel.Verbose,
@@ -110,6 +119,12 @@ namespace LlmEmbeddingsCpu.App
             _ => Serilog.Events.LogEventLevel.Information
         };
         
+        /// <summary>
+        /// Configures the dependency injection container with all the necessary services.
+        /// </summary>
+        /// <param name="logDir">The directory to store log files.</param>
+        /// <param name="minLogLevel">The minimum log level.</param>
+        /// <returns>A configured <see cref="ServiceProvider"/>.</returns>
         private static ServiceProvider ConfigureServices(string logDir = "logs", LogLevel minLogLevel = LogLevel.Debug)
         {
             var services = new ServiceCollection();
