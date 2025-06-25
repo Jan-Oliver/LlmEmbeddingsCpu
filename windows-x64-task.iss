@@ -5,14 +5,14 @@
 
 [Setup]
 ; --- Basic information ------------------------------------------------
-AppName=LLM Embeddings CPU Background Agent
+AppName=LLM Embeddings CPU Background Agent
 AppVersion=1.0.0
 AppPublisher=ETHZ
 
 ; --- Where to install --------------------------------------------------
 DefaultDirName={autopf}\LLM Embeddings CPU
 ; (Start‑menu folder—optional)
-DefaultGroupName=LLM Embeddings CPU         
+DefaultGroupName=LLM Embeddings CPU
 
 ; --- Output EXE --------------------------------------------------------
 OutputBaseFilename=LlmEmbeddingsCpuInstallerX64
@@ -20,11 +20,9 @@ OutputBaseFilename=LlmEmbeddingsCpuInstallerX64
 ; --- Compression / looks ----------------------------------------------
 Compression=lzma
 SolidCompression=yes
-;Compression=none
-;SolidCompression=no
 WizardStyle=modern
 
-; --- We need admin rights to write to Program Files and create a task --
+; --- We need admin rights to write to Program Files and create a task --
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
@@ -34,14 +32,46 @@ PrivilegesRequiredOverridesAllowed=dialog
 [Files]
 ; --- SINGLE‑FILE BUILD -------------------------------------------------
 ; Publish with:
-;   dotnet publish -c Release -r win-x64 ^
+;    dotnet publish -c Release -r win-x64 ^
 ;       -p:PublishSingleFile=true -p:SelfContained=true
 ;
 ; Then point Source to that one EXE:
-Source: ".\src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe"; \
-    DestDir: "{app}"; Flags: ignoreversion
+Source: ".\src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+; // Include the VC++ Redistributable installer.
+; // It will be extracted to a temp folder and deleted after use.
+Source: "prerequisites\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
+
+
+
+; // Check if the prerequisite is already installed.
+; // This prevents the installer from running on every installation.
+[Code]
+function ShouldInstallVcRedist: Boolean;
+var
+  Installed: Cardinal;
+begin
+  // The VC++ 2015-2022 x64 redistributable registers itself here.
+  // We check if the 'Installed' value is present and set to 1.
+  if not RegQueryDwordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then
+  begin
+    // Key or value doesn't exist, so it's definitely not installed.
+    Result := True;
+    Exit;
+  end;
+
+  // If the 'Installed' value is 1, it's installed. Otherwise, it might be a partial/broken install, so we should run it.
+  Result := (Installed <> 1);
+end;
+
 
 [Run]
+; --------------------------------------------------------------------
+; // First, run the VC++ Redistributable installer if needed.
+; // This MUST be the first item in [Run] to ensure dependencies are met.
+; --------------------------------------------------------------------
+Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Microsoft VC++ Runtime..."; Check: ShouldInstallVcRedist
+
 ; --------------------------------------------------------------------
 ; Register the autostart Task‑Scheduler job (single line, no breaks)
 ; --------------------------------------------------------------------
