@@ -29,9 +29,6 @@ namespace LlmEmbeddingsCpu.App
         [STAThread]
         static void Main(string[] args)
         {
-            // Parse command line arguments
-            bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
-
             // Configure Logging directory
             string basePath = AppContext.BaseDirectory;
 
@@ -71,8 +68,9 @@ namespace LlmEmbeddingsCpu.App
             // Get the scheduled service
             var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
 
-            // Subscribe to events if debug mode is enabled
+            // If debug mode is enabled, process now if the --process-now argument is provided
             #if DEBUG
+                bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
                 if (processNow)
                 {
                     Console.WriteLine("Running one-time processing...");

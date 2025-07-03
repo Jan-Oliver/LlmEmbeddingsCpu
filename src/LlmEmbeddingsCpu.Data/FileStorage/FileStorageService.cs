@@ -71,9 +71,13 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                     _logger.LogInformation("Wrote to file: {FilePath}", fullPath);
                 }
             }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "IO error writing to {FilePath}", fullPath);
+            }
             catch (Exception ex)
             {
-                _logger.LogError("Error writing to {FilePath}: {ErrorMessage}", fullPath, ex.Message);
+                _logger.LogError(ex, "Unexpected error writing to {FilePath}", fullPath);
             }
         }
 
@@ -93,12 +97,16 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
 
             try
             {
-                string content = await File.ReadAllTextAsync(fullPath);
-                return content;
+                return await File.ReadAllTextAsync(fullPath);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "IO error reading from {FilePath}", fullPath);
+                return string.Empty;
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error reading from {FilePath}: {ErrorMessage}", fullPath, ex.Message);
+                _logger.LogError(ex, "Unexpected error reading from {FilePath}", fullPath);
                 return string.Empty;
             }
         }
@@ -124,20 +132,26 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             string oldPath = Path.Combine(_basePath, oldName);
             string newPath = Path.Combine(_basePath, newName);
 
-            if (!File.Exists(oldPath))
-                throw new FileNotFoundException($"File not found: {oldName}", oldPath);
-
-            if (File.Exists(newPath))
-                throw new IOException($"File already exists: {newName}");
-
             try
             {
+                if (!File.Exists(oldPath))
+                {
+                    _logger.LogWarning("File not found to move: {OldPath}", oldPath);
+                    return;
+                }
+
+                if (File.Exists(newPath))
+                {
+                    _logger.LogWarning("Destination file already exists, overwriting: {NewPath}", newPath);
+                    File.Delete(newPath);
+                }
+
                 File.Move(oldPath, newPath);
                 _logger.LogInformation("Moved '{OldName}' to '{NewName}'", oldName, newName);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error moving file from '{OldName}' to '{NewName}': {ErrorMessage}", oldName, newName, ex.Message);
+                _logger.LogError(ex, "Error moving file from '{OldName}' to '{NewName}'", oldName, newName);
                 throw;
             }
         }
@@ -152,20 +166,26 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             string oldPath = Path.Combine(_basePath, oldFolderName);
             string newPath = Path.Combine(_basePath, newFolderName);
 
-            if (!Directory.Exists(oldPath))
-                throw new DirectoryNotFoundException($"Directory not found: {oldFolderName}");
-
-            if (Directory.Exists(newPath))
-                throw new IOException($"Target directory already exists: {newFolderName}");
-
             try
             {
+                if (!Directory.Exists(oldPath))
+                {
+                    _logger.LogWarning("Directory not found to move: {OldPath}", oldPath);
+                    return;
+                }
+
+                if (Directory.Exists(newPath))
+                {
+                    _logger.LogWarning("Destination directory already exists, deleting and recreating: {NewPath}", newPath);
+                    Directory.Delete(newPath, true);
+                }
+
                 Directory.Move(oldPath, newPath);
                 _logger.LogInformation("Moved directory '{OldPath}' to '{NewPath}'", oldPath, newPath);
             }
             catch (Exception ex)
             {
-                _logger.LogError("Error moving directory from '{OldPath}' to '{NewPath}': {ErrorMessage}", oldPath, newPath, ex.Message);
+                _logger.LogError(ex, "Error moving directory from '{OldPath}' to '{NewPath}'", oldPath, newPath);
                 throw;
             }
         }
