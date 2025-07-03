@@ -204,8 +204,13 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                 var keyboardLogFilePath = _keyboardInputStorageService.GetFilePath(date);
                 var keyboardLogExists = _fileStorageService.CheckIfFileExists(keyboardLogFilePath);
                 if (keyboardLogExists) {
+                    #if DEBUG
                     _logger.LogInformation("Moving keyboard log to upload path: {KeyboardLogUploadFilePath}", keyboardLogFilePath);
                     _keyboardInputStorageService.MarkFileAsDeleted(date);
+                    #else
+                    _logger.LogInformation("Deleting keyboard log: {KeyboardLogFilePath}", keyboardLogFilePath);
+                    _keyboardInputStorageService.DeleteFile(date);
+                    #endif
                 }
                 
                 // Move the mouse logs to the upload directory

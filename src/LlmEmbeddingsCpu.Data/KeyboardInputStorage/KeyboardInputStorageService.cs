@@ -176,7 +176,34 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         }
 
         /// <summary>
-        /// Marks the log file for a specific date as deleted by moving it to a designated 'deleted' directory.
+        /// Deletes the log file for a specific date.
+        /// </summary>
+        /// <param name="date">The date of the log file to be deleted.</param>
+        public void DeleteFile(DateTime date)
+        {
+            try
+            {
+                string keyboardFileName = GetFilePath(date);
+
+                bool keyboardFileExists = _fileStorageService.CheckIfFileExists(keyboardFileName);
+
+                if (!keyboardFileExists)
+                {
+                    _logger.LogError("No log files found for date: {Date}", date);
+                    return;
+                }
+
+                _fileStorageService.DeleteFile(keyboardFileName);
+            }
+            catch (Exception ex) when (ex is not FileNotFoundException)
+            {
+                _logger.LogError("Error deleting file: {ErrorMessage}", ex.Message);
+                throw new InvalidOperationException($"Error deleting file: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Debug only:Marks the log file for a specific date as deleted by moving it to a designated 'deleted' directory.
         /// </summary>
         /// <param name="date">The date of the log file to be marked as deleted.</param>
         public void MarkFileAsDeleted(DateTime date)
