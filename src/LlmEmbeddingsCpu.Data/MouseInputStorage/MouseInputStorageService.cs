@@ -37,7 +37,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             string fileName = GetFilePath(DateTime.Now);
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Content.X}|{log.Content.Y}|{(int)log.Content.Button}|{log.Content.Clicks}|{log.Content.Delta}";
             
-            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
+            _logger.LogDebug("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
@@ -94,11 +94,11 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                 var logs = new List<MouseInputLog>();
                 
                
-                _logger.LogInformation("Reading mouse logs for: {Date}", date);
+                _logger.LogDebug("Reading mouse logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(mouseInputFileName);
                 if (string.IsNullOrEmpty(content))
                 {
-                    _logger.LogInformation("No mouse logs found for: {Date}", date);
+                    _logger.LogDebug("No mouse logs found for: {Date}", date);
                     return logs;
                 }
 

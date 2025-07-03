@@ -32,8 +32,6 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
 
         private readonly string _uploadPath = "upload-queue";
 
-        private readonly string _archivePath = "archives";
-
         /// <summary>
         /// Initializes a new instance of the <see cref="ScheduledProcessingService"/> class.
         /// </summary>
@@ -76,7 +74,7 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                 timeUntilFirstRun = TimeSpan.FromDays(1) + timeUntilFirstRun;
             }
             
-            _logger.LogInformation("First run in {TimeUntilFirstRun:hh\\:mm\\:ss}", timeUntilFirstRun);
+            _logger.LogDebug("First run in {TimeUntilFirstRun:hh\\:mm\\:ss}", timeUntilFirstRun);
         }
 
         /// <summary>
@@ -142,26 +140,24 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                     {
                         if (!string.IsNullOrWhiteSpace(keyboardLog.Content))
                         {
-                            _logger.LogInformation("Processing text: {Text}", keyboardLog.Content);
+                            _logger.LogDebug("Processing text: {Text}", keyboardLog.Content);
                             var embedding = await _embeddingService.GenerateEmbeddingAsync(keyboardLog);
-                            _logger.LogInformation("First 5 elements of embedding: {Embedding}", string.Join(", ", embedding.Vector.Take(5)));
+                            _logger.LogDebug("First 5 elements of embedding: {Embedding}", string.Join(", ", embedding.Vector.Take(5)));
                             embeddings.Add(embedding);
                         }
                     }
-                    
-                    _logger.LogInformation("Generated {EmbeddingCount} embeddings", embeddings.Count);
+                    _logger.LogDebug("Generated {EmbeddingCount} embeddings", embeddings.Count);
                     
                     // Save embeddings
                     await _embeddingStorageService.SaveEmbeddingsAsync(embeddings, dateToProcess);
-                    
                     _logger.LogInformation("Completed processing for date {Date}", dateToProcess);
                 }
 
+                // Combine data and make ready for upload
                 foreach (var dateToProcess in datesToProcess)
                 {
                     _logger.LogInformation("Creating archive for date: {Date}", dateToProcess);
-                    
-                    UploadData(dateToProcess);
+                    CombineData(dateToProcess);
                 }
                 
                 _logger.LogInformation("Text processing completed successfully");
@@ -179,29 +175,29 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
         }
 
         /// <summary>
-        /// Prepares the data for a given date for upload by moving it to a designated upload directory.
+        /// Combines the data for a given date by moving it to a designated combined directory.
         /// </summary>
-        /// <param name="date">The date of the data to be prepared for upload.</param>
-        private void UploadData(DateTime date)
+        /// <param name="date">The date of the data to be combined.</param>
+        private void CombineData(DateTime date)
         {
             try
             {
-                Console.WriteLine("Creating daily archive for date: " + date);
+                _logger.LogInformation("Combining data for date: {Date}", date);
                 var hostname = Environment.MachineName;
                 var userId = Environment.UserName;
                 var dateStr = date.ToString("yyyy-MM-dd");
 
-                var uploadPath = Path.Combine(_uploadPath, $"{hostname}-{userId}-{dateStr}");
-                _logger.LogInformation("Upload path: {UploadPath}", uploadPath);
-                _fileStorageService.EnsureDirectoryExists(uploadPath);
+                var combinedPath = Path.Combine(_uploadPath, $"{hostname}-{userId}-{dateStr}");
+                _logger.LogInformation("Combined path: {CombinedPath}", combinedPath);
+                _fileStorageService.EnsureDirectoryExists(combinedPath);
 
                 // Move the window monitor logs to the deleted directory
                 var windowMonitorLogFilePath = _windowMonitorStorageService.GetFilePath(date);
                 var windowMonitorLogExists = _fileStorageService.CheckIfFileExists(windowMonitorLogFilePath);
-                var windowMonitorLogUploadFilePath = Path.Combine(uploadPath, "window_monitor_logs.txt");
+                var windowMonitorLogCombinedFilePath = Path.Combine(combinedPath, "window_monitor_logs.txt");
                 if (windowMonitorLogExists) {
-                    _logger.LogInformation("Moving window monitor log to upload path: {WindowMonitorLogUploadFilePath}", windowMonitorLogUploadFilePath);
-                    _fileStorageService.MoveFile(windowMonitorLogFilePath, windowMonitorLogUploadFilePath);
+                    _logger.LogInformation("Moving window monitor log to combined path: {WindowMonitorLogCombinedFilePath}", windowMonitorLogCombinedFilePath);
+                    _fileStorageService.MoveFile(windowMonitorLogFilePath, windowMonitorLogCombinedFilePath);
                 }
 
                 // Delete the keyboard logs
@@ -215,19 +211,19 @@ namespace LlmEmbeddingsCpu.Services.BackgroundProcessing
                 // Move the mouse logs to the upload directory
                 var mouseLogFilePath = _mouseInputStorageService.GetFilePath(date);
                 var mouseLogExists = _fileStorageService.CheckIfFileExists(mouseLogFilePath);
-                var mouseLogUploadFilePath = Path.Combine(uploadPath, "mouse_logs.txt");
+                var mouseLogCombinedFilePath = Path.Combine(combinedPath, "mouse_logs.txt");
                 if (mouseLogExists) {
-                    _logger.LogInformation("Moving mouse log to upload path: {MouseLogUploadFilePath}", mouseLogUploadFilePath);
-                    _fileStorageService.MoveFile(mouseLogFilePath, mouseLogUploadFilePath);
+                    _logger.LogInformation("Moving mouse log to combined path: {MouseLogCombinedFilePath}", mouseLogCombinedFilePath);
+                    _fileStorageService.MoveFile(mouseLogFilePath, mouseLogCombinedFilePath);
                 }
 
                 // Move the embeddings folder to the upload directory
                 var embeddingsDir = _embeddingStorageService.GetFolderPath(date);
                 var embeddingsDirExists = _fileStorageService.CheckIfDirectoryExists(embeddingsDir);
-                var embeddingsUploadDir = Path.Combine(uploadPath, "embeddings");
+                var embeddingsCombinedDir = Path.Combine(combinedPath, "embeddings");
                 if (embeddingsDirExists) {
-                    _logger.LogInformation("Moving embeddings folder to upload path: {EmbeddingsUploadDir}", embeddingsUploadDir);
-                    _fileStorageService.MoveFolder(embeddingsDir, embeddingsUploadDir);
+                    _logger.LogInformation("Moving embeddings folder to combined path: {EmbeddingsCombinedDir}", embeddingsCombinedDir);
+                    _fileStorageService.MoveFolder(embeddingsDir, embeddingsCombinedDir);
                 }
             }
             catch (Exception ex)

@@ -104,12 +104,12 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 var logs = new List<KeyboardInputLog>();
                 
                 
-                _logger.LogInformation("Reading keyboard logs for: {Date}", date);
+                _logger.LogDebug("Reading keyboard logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(keyboardFileName);
 
                 if (string.IsNullOrEmpty(content))
                 {
-                    _logger.LogInformation("No keyboard logs found for: {Date}", date);
+                    _logger.LogDebug("No keyboard logs found for: {Date}", date);
                     return logs;
                 }
 
@@ -231,7 +231,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 // Move the file to the deleted directory
                 _fileStorageService.MoveFile(fileName, newFileName);
                 
-                _logger.LogInformation("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
+                _logger.LogDebug("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
             }
             catch (Exception ex)
             {

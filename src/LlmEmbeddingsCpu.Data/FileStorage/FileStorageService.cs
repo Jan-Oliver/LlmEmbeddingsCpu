@@ -63,12 +63,12 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 if (append)
                 {
                     await File.AppendAllTextAsync(fullPath, content);
-                    _logger.LogInformation("Appended to file: {FilePath}", fullPath);
+                    _logger.LogDebug("Appended to file: {FilePath}", fullPath);
                 }
                 else
                 {
                     await File.WriteAllTextAsync(fullPath, content);
-                    _logger.LogInformation("Wrote to file: {FilePath}", fullPath);
+                    _logger.LogDebug("Wrote to file: {FilePath}", fullPath);
                 }
             }
             catch (IOException ex)
@@ -147,7 +147,7 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 }
 
                 File.Move(oldPath, newPath);
-                _logger.LogInformation("Moved '{OldName}' to '{NewName}'", oldName, newName);
+                _logger.LogDebug("Moved '{OldName}' to '{NewName}'", oldName, newName);
             }
             catch (Exception ex)
             {
@@ -181,7 +181,7 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 }
 
                 Directory.Move(oldPath, newPath);
-                _logger.LogInformation("Moved directory '{OldPath}' to '{NewPath}'", oldPath, newPath);
+                _logger.LogDebug("Moved directory '{OldPath}' to '{NewPath}'", oldPath, newPath);
             }
             catch (Exception ex)
             {
@@ -235,7 +235,7 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
                 if (!Directory.Exists(fullPath))
                 {
                     Directory.CreateDirectory(fullPath);
-                    _logger.LogInformation("Ensured directory exists: {FilePath}", fullPath);
+                    _logger.LogDebug("Ensured directory exists: {FilePath}", fullPath);
                 }
             }
             catch (Exception ex)

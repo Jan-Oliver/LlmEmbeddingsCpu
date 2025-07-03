@@ -68,9 +68,6 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 ExecutionMode = ExecutionMode.ORT_SEQUENTIAL,
                 GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL
             };
-
-            // Initialize ONNX session
-            //_session = new InferenceSession(modelPath, sessionOptions);
         }
 
         /// <summary>
@@ -89,6 +86,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         /// <returns>A <see cref="Task{Embedding}"/> representing the asynchronous operation, containing the generated embedding.</returns>
         public async Task<Core.Models.Embedding> GenerateEmbeddingAsync(KeyboardInputLog keyboardInputLog)
         {
+            _logger.LogDebug("Generating embedding for a single keyboard input log");
             var list = await GenerateEmbeddingsAsync(new[] { keyboardInputLog });
             return list.First();
         }
@@ -102,6 +100,7 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
         {
             return await Task.Run(() =>
             {
+                _logger.LogDebug("Generating embeddings for {KeyboardInputLogCount} keyboard input logs", keyboardInputLogs.Count());
                 using var session = new InferenceSession(_modelPath, _sessionOptions);
 
                 var results = new List<Core.Models.Embedding>();

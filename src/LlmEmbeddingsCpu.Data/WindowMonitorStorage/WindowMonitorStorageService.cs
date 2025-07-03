@@ -93,11 +93,11 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                 var logs = new List<ActiveWindowLog>();
                 
                
-                _logger.LogInformation("Reading mouse logs for: {Date}", date);
+                _logger.LogDebug("Reading mouse logs for: {Date}", date);
                 string content = await _fileStorageService.ReadFileAsyncIfExists(windowMonitorFileName);
                 if (string.IsNullOrEmpty(content))
                 {
-                    _logger.LogInformation("No mouse logs found for: {Date}", date);
+                    _logger.LogDebug("No mouse logs found for: {Date}", date);
                     return logs;
                 }
 

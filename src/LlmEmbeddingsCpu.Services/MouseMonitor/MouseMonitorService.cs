@@ -60,8 +60,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
 
             await _mouseInputStorageService.SaveLogAsync(log);
             
-            // Log the event
-            _logger.LogInformation("Mouse clicked at {X}, {Y}", e.X, e.Y);
+            _logger.LogDebug("Mouse clicked at {X}, {Y}", e.X, e.Y);
         }
     }
 }
