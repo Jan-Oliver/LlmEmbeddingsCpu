@@ -27,10 +27,5 @@ namespace LlmEmbeddingsCpu.Core.Models
         /// Gets or sets the timestamp of the source input.
         /// </summary>
         public DateTime Timestamp { get; set; }
-
-        /// <summary>
-        /// Gets or sets the source text that was used to generate the embedding.
-        /// </summary>
-        public string SourceText { get; set; } = string.Empty;
     }
 }

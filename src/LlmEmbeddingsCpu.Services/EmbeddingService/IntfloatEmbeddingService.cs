@@ -112,7 +112,6 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
 
                     results.Add(new Core.Models.Embedding
                     {
-                        SourceText = pre,
                         Vector     = vec,
                         ModelName  = _modelName,
                         Timestamp  = inputLog.Timestamp,
