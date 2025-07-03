@@ -1,18 +1,19 @@
 ﻿using LlmEmbeddingsCpu.Core.Interfaces;
-using LlmEmbeddingsCpu.Data.FileStorage;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
-using LlmEmbeddingsCpu.Data.MouseInputStorage;
-using LlmEmbeddingsCpu.Data.EmbeddingStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
+using LlmEmbeddingsCpu.Data.MouseLogIO;
+using LlmEmbeddingsCpu.Data.EmbeddingIO;
+using LlmEmbeddingsCpu.Data.ProcessingStateIO;
+using LlmEmbeddingsCpu.Data.WindowLogIO;
 using LlmEmbeddingsCpu.Services.KeyboardMonitor;
 using LlmEmbeddingsCpu.Services.MouseMonitor;
 using LlmEmbeddingsCpu.Services.EmbeddingService;
-using LlmEmbeddingsCpu.Services.BackgroundProcessing;
 using LlmEmbeddingsCpu.Services.WindowMonitor;
 using LlmEmbeddingsCpu.Services.ResourceMonitor;
 using LlmEmbeddingsCpu.Services.ContinuousProcessing;
 using LlmEmbeddingsCpu.Services.NightlyCronProcessing;
 using LlmEmbeddingsCpu.Services.Aggregation;
-using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+using LlmEmbeddingsCpu.Common.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -20,16 +21,6 @@ using System.Windows.Forms;
 
 namespace LlmEmbeddingsCpu.App
 {
-    /// <summary>
-    /// Application launch modes for different processes.
-    /// </summary>
-    public enum LaunchMode
-    {
-        Logger,
-        Processor,
-        CronProcessor,
-        Aggregator
-    }
 
     /// <summary>
     /// The main entry point for the application.
@@ -120,48 +111,22 @@ namespace LlmEmbeddingsCpu.App
         /// </summary>
         private static async Task RunLoggerMode(ServiceProvider serviceProvider, string[] args)
         {
-            // Get the tracking services by concrete type
             var keyboardTracker = serviceProvider.GetRequiredService<KeyboardMonitorService>();
             var mouseTracker = serviceProvider.GetRequiredService<MouseMonitorService>();
             var windowTracker = serviceProvider.GetRequiredService<WindowMonitorrService>();
             var resourceMonitor = serviceProvider.GetRequiredService<ResourceMonitorService>();
-
-            // Get the scheduled service
-            var scheduledProcessor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
-
-            // If debug mode is enabled, process now if the --process-now argument is provided
-            #if DEBUG
-                bool processNow = args.Contains("--process-now", StringComparer.OrdinalIgnoreCase);
-                if (processNow)
-                {
-                    Console.WriteLine("Running one-time processing...");
-                    var processor = serviceProvider.GetRequiredService<ScheduledProcessingService>();
-                    await processor.ProcessNowAsync();
-                    Console.WriteLine("Processing complete.");
-                    return;
-                }
-            #endif
             
-            // Start tracking
             keyboardTracker.StartTracking();
             mouseTracker.StartTracking();
             windowTracker.StartTracking();
             resourceMonitor.StartMonitoring();
-
-            // Schedule daily processing
-            scheduledProcessor.ScheduleProcessingAsync(TimeSpan.FromHours(0));
-            
-            Log.Information("Input tracking and resource monitoring started. Press Enter to exit.");
-            
-            // Use Application.Run() for the Windows Forms message loop
+                        
             Application.Run();
             
-            // Stop tracking
             keyboardTracker.StopTracking();
             mouseTracker.StopTracking();
             windowTracker.StopTracking();
             resourceMonitor.StopMonitoring();
-            await scheduledProcessor.StopScheduledProcessingAsync();
         }
 
         /// <summary>
@@ -233,8 +198,9 @@ namespace LlmEmbeddingsCpu.App
             });
             
             // Register common storage services (needed by all modes)
-            services.AddSingleton<FileStorageService>(provider => new(logDir, provider.GetRequiredService<ILogger<FileStorageService>>()));
-            services.AddSingleton<EmbeddingStorageService>();
+            services.AddSingleton<FileSystemIOService>(provider => new(logDir, provider.GetRequiredService<ILogger<FileSystemIOService>>()));
+            services.AddSingleton<EmbeddingIOService>();
+            services.AddSingleton<ProcessingStateIOService>();
 
             // Register services based on launch mode
             switch (launchMode)
@@ -262,9 +228,9 @@ namespace LlmEmbeddingsCpu.App
         private static void RegisterLoggerServices(ServiceCollection services)
         {
             // Register all storage services
-            services.AddSingleton<KeyboardInputStorageService>();
-            services.AddSingleton<MouseInputStorageService>();
-            services.AddSingleton<WindowMonitorStorageService>();
+            services.AddSingleton<KeyboardLogIOService>();
+            services.AddSingleton<MouseLogIOService>();
+            services.AddSingleton<WindowLogIOService>();
             
             // Register embedding service
             services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
@@ -276,9 +242,6 @@ namespace LlmEmbeddingsCpu.App
 
             // Register resource monitoring service
             services.AddSingleton<ResourceMonitorService>();
-
-            // Register scheduled processing service
-            services.AddSingleton<ScheduledProcessingService>();
         }
 
         /// <summary>
@@ -287,7 +250,7 @@ namespace LlmEmbeddingsCpu.App
         private static void RegisterProcessorServices(ServiceCollection services)
         {
             // Register keyboard input storage service
-            services.AddSingleton<KeyboardInputStorageService>();
+            services.AddSingleton<KeyboardLogIOService>();
             
             // Register embedding service
             services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
@@ -302,7 +265,7 @@ namespace LlmEmbeddingsCpu.App
         private static void RegisterCronProcessorServices(ServiceCollection services)
         {
             // Register keyboard input storage service
-            services.AddSingleton<KeyboardInputStorageService>();
+            services.AddSingleton<KeyboardLogIOService>();
             
             // Register embedding service
             services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
@@ -317,9 +280,9 @@ namespace LlmEmbeddingsCpu.App
         private static void RegisterAggregatorServices(ServiceCollection services)
         {
             // Register all storage services
-            services.AddSingleton<KeyboardInputStorageService>();
-            services.AddSingleton<MouseInputStorageService>();
-            services.AddSingleton<WindowMonitorStorageService>();
+            services.AddSingleton<KeyboardLogIOService>();
+            services.AddSingleton<MouseLogIOService>();
+            services.AddSingleton<WindowLogIOService>();
             
             // Register aggregation service
             services.AddSingleton<AggregationService>();

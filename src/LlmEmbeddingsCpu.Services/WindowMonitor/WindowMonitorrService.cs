@@ -2,7 +2,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+using LlmEmbeddingsCpu.Data.WindowLogIO;
 using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.WindowMonitor
@@ -38,7 +38,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         private IntPtr _hookHandle = IntPtr.Zero;
         private readonly WinEventDelegate _eventDelegate; // Keep a reference to prevent GC
 
-        private readonly WindowMonitorStorageService _windowMonitorStorageService;
+        private readonly WindowLogIOService _windowMonitorStorageService;
         private readonly ILogger<WindowMonitorrService> _logger;
         
         /// <summary>
@@ -46,7 +46,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         /// </summary>
         public WindowMonitorrService(
             ILogger<WindowMonitorrService> logger,
-            WindowMonitorStorageService windowMonitorStorageService)
+            WindowLogIOService windowMonitorStorageService)
         {
             _logger = logger;
             // Keep the delegate instance to prevent it from being garbage collected

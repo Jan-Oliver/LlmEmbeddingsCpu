@@ -2,7 +2,7 @@ using Gma.System.MouseKeyHook;
 using System.Text;
 using System.Windows.Forms;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
 using Microsoft.Extensions.Logging;
 using LlmEmbeddingsCpu.Core.Enums;
 
@@ -12,7 +12,7 @@ namespace LlmEmbeddingsCpu.Services.KeyboardMonitor;
 /// Monitors global keyboard events, buffers printable characters, and logs special key combinations.
 /// </summary>
 public sealed class KeyboardMonitorService(
-    KeyboardInputStorageService keyboardInputStorageService,
+    KeyboardLogIOService keyboardLogIOService,
     ILogger<KeyboardMonitorService> logger)
     : IDisposable
 {
@@ -20,7 +20,7 @@ public sealed class KeyboardMonitorService(
 
     private IKeyboardEvents? _hook;
     private readonly StringBuilder _buffer = new();
-    private readonly KeyboardInputStorageService _storage = keyboardInputStorageService;
+    private readonly KeyboardLogIOService _storage = keyboardLogIOService;
     private readonly ILogger<KeyboardMonitorService> _log = logger;
 
     /* ------------------------------------------------------------------ */

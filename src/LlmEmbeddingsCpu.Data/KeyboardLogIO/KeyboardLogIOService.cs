@@ -1,24 +1,24 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
 using Microsoft.Extensions.Logging;
 using LlmEmbeddingsCpu.Core.Enums;
 using LlmEmbeddingsCpu.Common.Extensions;
 
-namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
+namespace LlmEmbeddingsCpu.Data.KeyboardLogIO
 {
     /// <summary>
-    /// Manages the storage and retrieval of keyboard input logs.
+    /// Manages the I/O operations for keyboard input logs.
     /// Handles encryption, file naming, and log parsing.
     /// </summary>
-    public class KeyboardInputStorageService(
-        FileStorageService fileStorageService,
-        ILogger<KeyboardInputStorageService> logger)
+    public class KeyboardLogIOService(
+        FileSystemIOService fileSystemIOService,
+        ILogger<KeyboardLogIOService> logger)
     {
-        private readonly FileStorageService _fileStorageService = fileStorageService;
+        private readonly FileSystemIOService _fileSystemIOService = fileSystemIOService;
         private readonly string _keyboardLogBaseFileName = "keyboard_logs";
 
-        private readonly ILogger<KeyboardInputStorageService> _logger = logger;
+        private readonly ILogger<KeyboardLogIOService> _logger = logger;
 
         /// <summary>
         /// Generates the file path for a keyboard log file based on a given date.
@@ -27,7 +27,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         /// <returns>The formatted file path string.</returns>
         public string GetFilePath(DateTime date)
         {
-            string timestamp = date.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyyMMdd");
             return $"{_keyboardLogBaseFileName}-{timestamp}.txt";
         }
 
@@ -44,7 +44,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
-            await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
+            await _fileSystemIOService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
 
@@ -57,7 +57,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         /// <returns>An <see cref="IEnumerable{DateTime}"/> containing the dates to be processed.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
-            var files = _fileStorageService.ListFiles("*.txt");
+            var files = _fileSystemIOService.ListFiles("*.txt");
             var logFiles = files.Where(f =>  
                 f.StartsWith(_keyboardLogBaseFileName))
                 .OrderBy(f => f);
@@ -77,7 +77,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                     if (dateStart > 0 && dateEnd > dateStart)
                     {
                         var dateStr = f.Substring(dateStart, dateEnd - dateStart);
-                        if (DateTime.TryParseExact(dateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
+                        if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
                         {
                             return logDate;
                         }
@@ -98,14 +98,14 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
         {
             try
             {
-                string keyboardFileName = $"{_keyboardLogBaseFileName}-{date:yyyy-MM-dd}.txt";
+                string keyboardFileName = $"{_keyboardLogBaseFileName}-{date:yyyyMMdd}.txt";
 
                 
                 var logs = new List<KeyboardInputLog>();
                 
                 
                 _logger.LogDebug("Reading keyboard logs for: {Date}", date);
-                string content = await _fileStorageService.ReadFileAsyncIfExists(keyboardFileName);
+                string content = await _fileSystemIOService.ReadFileAsyncIfExists(keyboardFileName);
 
                 if (string.IsNullOrEmpty(content))
                 {
@@ -185,7 +185,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             {
                 string keyboardFileName = GetFilePath(date);
 
-                bool keyboardFileExists = _fileStorageService.CheckIfFileExists(keyboardFileName);
+                bool keyboardFileExists = _fileSystemIOService.CheckIfFileExists(keyboardFileName);
 
                 if (!keyboardFileExists)
                 {
@@ -193,7 +193,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                     return;
                 }
 
-                _fileStorageService.DeleteFile(keyboardFileName);
+                _fileSystemIOService.DeleteFile(keyboardFileName);
             }
             catch (Exception ex) when (ex is not FileNotFoundException)
             {
@@ -212,7 +212,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             {
                 string keyboardFileName = GetFilePath(date);
 
-                bool keyboardFileExists = _fileStorageService.CheckIfFileExists(keyboardFileName);
+                bool keyboardFileExists = _fileSystemIOService.CheckIfFileExists(keyboardFileName);
 
                 if (!keyboardFileExists)
                 {
@@ -242,12 +242,12 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
             {
                 // Create logs-deleted directory if it doesn't exist
                 string deletedDir = "logs-deleted";
-                _fileStorageService.EnsureDirectoryExists(deletedDir);
+                _fileSystemIOService.EnsureDirectoryExists(deletedDir);
 
                 string newFileName = Path.Combine(deletedDir, fileName);
                 
                 // If file already exists in deleted directory, append timestamp to make it unique
-                if (_fileStorageService.CheckIfFileExists(newFileName))
+                if (_fileSystemIOService.CheckIfFileExists(newFileName))
                 {
                     string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
                     string ext = Path.GetExtension(fileName);
@@ -256,7 +256,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardInputStorage
                 }
 
                 // Move the file to the deleted directory
-                _fileStorageService.MoveFile(fileName, newFileName);
+                _fileSystemIOService.MoveFile(fileName, newFileName);
                 
                 _logger.LogDebug("Successfully moved {FileName} to {NewFileName}", fileName, newFileName);
             }

@@ -1,13 +1,11 @@
 using LlmEmbeddingsCpu.Core.Interfaces;
-using LlmEmbeddingsCpu.Data.EmbeddingStorage;
-using LlmEmbeddingsCpu.Data.FileStorage;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.EmbeddingIO;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
+using LlmEmbeddingsCpu.Data.ProcessingStateIO;
 using LlmEmbeddingsCpu.Common.Extensions;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -18,19 +16,18 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
     /// </summary>
     public class NightlyCronProcessingService(
         ILogger<NightlyCronProcessingService> logger,
-        FileStorageService fileStorageService,
-        EmbeddingStorageService embeddingStorageService,
-        KeyboardInputStorageService keyboardInputStorageService,
-        IEmbeddingService embeddingService
+        EmbeddingIOService embeddingIOService,
+        KeyboardLogIOService keyboardLogIOService,
+        IEmbeddingService embeddingService,
+        ProcessingStateIOService processingStateIOService
     )
     {
         private readonly ILogger<NightlyCronProcessingService> _logger = logger;
-        private readonly FileStorageService _fileStorageService = fileStorageService;
-        private readonly EmbeddingStorageService _embeddingStorageService = embeddingStorageService;
-        private readonly KeyboardInputStorageService _keyboardInputStorageService = keyboardInputStorageService;
+        private readonly EmbeddingIOService _embeddingIOService = embeddingIOService;
+        private readonly KeyboardLogIOService _keyboardLogIOService = keyboardLogIOService;
         private readonly IEmbeddingService _embeddingService = embeddingService;
+        private readonly ProcessingStateIOService _processingStateIOService = processingStateIOService;
 
-        private const string ProcessingStatePath = "processing_state.json";
         private const int BatchSize = 10;
 
         /// <summary>
@@ -42,15 +39,14 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
 
             try
             {
-                var processingState = LoadProcessingState();
-                var datesToProcess = _keyboardInputStorageService.GetDatesToProcess().ToList();
+                var datesToProcess = _keyboardLogIOService.GetDatesToProcess().ToList();
 
                 _logger.LogInformation("Found {DateCount} dates to process", datesToProcess.Count);
 
                 // Process all dates without resource checks
                 foreach (var date in datesToProcess)
                 {
-                    await ProcessDateCompletely(date, processingState);
+                    await ProcessDateCompletely(date);
                 }
 
                 _logger.LogInformation("Nightly cron processing completed successfully");
@@ -61,13 +57,13 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
             }
         }
 
-        private async Task ProcessDateCompletely(DateTime date, Dictionary<string, int> processingState)
+        private async Task ProcessDateCompletely(DateTime date)
         {
             try
             {
-                var dateKey = GetDateKey(date);
-                var allLogs = (await _keyboardInputStorageService.GetPreviousLogsAsyncDecrypted(date)).ToList();
-                var processedCount = processingState.GetValueOrDefault(dateKey, 0);
+                var dateKey = ProcessingStateIOService.GetDateKey(date);
+                var allLogs = (await _keyboardLogIOService.GetPreviousLogsAsyncDecrypted(date)).ToList();
+                var processedCount = _processingStateIOService.GetProcessedCount(dateKey);
 
                 if (processedCount >= allLogs.Count)
                 {
@@ -95,7 +91,7 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
                     processedCount += batchLogs.Count;
 
                     // Update processing state
-                    await UpdateProcessingState(dateKey, processedCount);
+                    await _processingStateIOService.UpdateProcessedCount(dateKey, processedCount);
 
                     _logger.LogDebug("Processed batch for {Date}: {ProcessedCount}/{TotalCount}", 
                         dateKey, processedCount, allLogs.Count);
@@ -106,14 +102,10 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing date {Date}", date.ToString("yyyy-MM-dd"));
+                _logger.LogError(ex, "Error processing date {Date}", date.ToString("yyyyMMdd"));
             }
         }
 
-        private string GetDateKey(DateTime date)
-        {
-            return date.ToString("yyyy-MM-dd");
-        }
 
         private async Task ProcessKeyboardLogBatch(List<Core.Models.KeyboardInputLog> keyboardLogs, DateTime date)
         {
@@ -137,7 +129,7 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
                     var embedding = await _embeddingService.GenerateEmbeddingAsync(log);
                     
                     // Store embedding using the date parameter
-                    await _embeddingStorageService.SaveEmbeddingAsync(embedding, date);
+                    await _embeddingIOService.SaveEmbeddingAsync(embedding, date);
                     
                     _logger.LogDebug("Generated and stored embedding for content of length {Length}", 
                         log.Content.Length);
@@ -150,43 +142,5 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
             }
         }
 
-        private Dictionary<string, int> LoadProcessingState()
-        {
-            try
-            {
-                var json = _fileStorageService.ReadFileIfExists(ProcessingStatePath);
-                
-                if (string.IsNullOrEmpty(json))
-                {
-                    return new Dictionary<string, int>();
-                }
-
-                return JsonConvert.DeserializeObject<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading processing state, returning empty state");
-                return new Dictionary<string, int>();
-            }
-        }
-
-        private async Task UpdateProcessingState(string dateKey, int processedCount)
-        {
-            try
-            {
-                var processingState = LoadProcessingState();
-                processingState[dateKey] = processedCount;
-
-                var json = JsonConvert.SerializeObject(processingState, Formatting.Indented);
-                await _fileStorageService.WriteFileAsync(ProcessingStatePath, json, false);
-                
-                _logger.LogDebug("Updated processing state for {DateKey}: {ProcessedCount} logs", 
-                    dateKey, processedCount);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating processing state for {DateKey}", dateKey);
-            }
-        }
     }
 }

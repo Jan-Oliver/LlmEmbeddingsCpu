@@ -1,22 +1,22 @@
 using Microsoft.Extensions.Logging;
 
-namespace LlmEmbeddingsCpu.Data.FileStorage
+namespace LlmEmbeddingsCpu.Data.FileSystemIO
 {
     /// <summary>
-    /// Provides services for file storage operations such as reading, writing, and moving files.
+    /// Provides services for file system I/O operations such as reading, writing, and moving files.
     /// </summary>
-    public class FileStorageService
+    public class FileSystemIOService
     {
         private readonly string _basePath;
 
-        private readonly ILogger<FileStorageService> _logger;
+        private readonly ILogger<FileSystemIOService> _logger;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="FileStorageService"/> class.
+        /// Initializes a new instance of the <see cref="FileSystemIOService"/> class.
         /// </summary>
         /// <param name="basePath">The base path for file storage. If not provided, a default 'logs' directory is used.</param>
         /// <param name="logger">The logger instance for logging messages.</param>
-        public FileStorageService(string basePath, ILogger<FileStorageService> logger)
+        public FileSystemIOService(string basePath, ILogger<FileSystemIOService> logger)
         {
             _logger = logger;
 

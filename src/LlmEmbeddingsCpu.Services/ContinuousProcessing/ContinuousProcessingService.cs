@@ -1,10 +1,9 @@
 using LlmEmbeddingsCpu.Core.Interfaces;
-using LlmEmbeddingsCpu.Data.EmbeddingStorage;
-using LlmEmbeddingsCpu.Data.FileStorage;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.EmbeddingIO;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
+using LlmEmbeddingsCpu.Data.ProcessingStateIO;
 using LlmEmbeddingsCpu.Common.Extensions;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -20,29 +19,27 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
     public class ContinuousProcessingService
     {
         private readonly ILogger<ContinuousProcessingService> _logger;
-        private readonly FileStorageService _fileStorageService;
-        private readonly EmbeddingStorageService _embeddingStorageService;
-        private readonly KeyboardInputStorageService _keyboardInputStorageService;
+        private readonly EmbeddingIOService _embeddingIOService;
+        private readonly KeyboardLogIOService _keyboardLogIOService;
         private readonly IEmbeddingService _embeddingService;
+        private readonly ProcessingStateIOService _processingStateIOService;
         private readonly PerformanceCounter _cpuCounter;
 
-        private const string ProcessingStatePath = "processing_state.json";
         private const int BatchSize = 10;
         private const float CpuThreshold = 80.0f; // 80%
-        private const int CpuCheckIntervalMs = 1000; // 1 second
 
         public ContinuousProcessingService(
             ILogger<ContinuousProcessingService> logger,
-            FileStorageService fileStorageService,
-            EmbeddingStorageService embeddingStorageService,
-            KeyboardInputStorageService keyboardInputStorageService,
-            IEmbeddingService embeddingService)
+            EmbeddingIOService embeddingIOService,
+            KeyboardLogIOService keyboardLogIOService,
+            IEmbeddingService embeddingService,
+            ProcessingStateIOService processingStateIOService)
         {
             _logger = logger;
-            _fileStorageService = fileStorageService;
-            _embeddingStorageService = embeddingStorageService;
-            _keyboardInputStorageService = keyboardInputStorageService;
+            _embeddingIOService = embeddingIOService;
+            _keyboardLogIOService = keyboardLogIOService;
             _embeddingService = embeddingService;
+            _processingStateIOService = processingStateIOService;
             _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
             
             // Initialize CPU counter
@@ -67,24 +64,23 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
                 }
 
                 var targetDate = datesToProcess.First();
-                _logger.LogInformation("Processing date: {TargetDate}", targetDate.ToString("yyyy-MM-dd"));
+                _logger.LogInformation("Processing date: {TargetDate}", targetDate.ToString("yyyyMMdd"));
 
                 // Step 2: Load processing state for this date
-                var processingState = LoadProcessingState();
-                var dateKey = GetDateKey(targetDate);
-                var processedCount = processingState.GetValueOrDefault(dateKey, 0);
+                var dateKey = ProcessingStateIOService.GetDateKey(targetDate);
+                var processedCount = _processingStateIOService.GetProcessedCount(dateKey);
 
                 // Step 3: Get all keyboard logs for the target date
-                var allLogs = (await _keyboardInputStorageService.GetPreviousLogsAsyncDecrypted(targetDate)).ToList();
+                var allLogs = (await _keyboardLogIOService.GetPreviousLogsAsyncDecrypted(targetDate)).ToList();
                 
                 if (allLogs.Count == 0)
                 {
-                    _logger.LogInformation("No keyboard logs found for date {Date}", targetDate.ToString("yyyy-MM-dd"));
+                    _logger.LogInformation("No keyboard logs found for date {Date}", targetDate.ToString("yyyyMMdd"));
                     return;
                 }
 
                 _logger.LogInformation("Found {TotalLogs} logs for {Date}, {ProcessedCount} already processed", 
-                    allLogs.Count, targetDate.ToString("yyyy-MM-dd"), processedCount);
+                    allLogs.Count, targetDate.ToString("yyyyMMdd"), processedCount);
 
                 // Step 4: Process remaining logs in batches
                 while (processedCount < allLogs.Count)
@@ -100,7 +96,7 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
                     var batchLogs = allLogs.Skip(processedCount).Take(BatchSize).ToList();
                     if (batchLogs.Count == 0)
                     {
-                        _logger.LogInformation("No more logs to process for date {Date}", targetDate.ToString("yyyy-MM-dd"));
+                        _logger.LogInformation("No more logs to process for date {Date}", targetDate.ToString("yyyyMMdd"));
                         break;
                     }
 
@@ -109,14 +105,14 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
                     processedCount += batchLogs.Count;
 
                     // Update processing state
-                    await UpdateProcessingState(dateKey, processedCount);
+                    await _processingStateIOService.UpdateProcessedCount(dateKey, processedCount);
 
                     _logger.LogDebug("Processed batch of {Count} logs, total processed: {Total}/{TotalLogs}", 
                         batchLogs.Count, processedCount, allLogs.Count);
                 }
 
                 _logger.LogInformation("Completed processing for date {Date}: {ProcessedCount}/{TotalLogs}", 
-                    targetDate.ToString("yyyy-MM-dd"), processedCount, allLogs.Count);
+                    targetDate.ToString("yyyyMMdd"), processedCount, allLogs.Count);
             }
             finally
             {
@@ -128,16 +124,16 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
         {
             try
             {
-                var processingState = LoadProcessingState();
-                var availableDates = _keyboardInputStorageService.GetDatesToProcess().ToList();
+                var availableDates = _keyboardLogIOService.GetDatesToProcess().ToList();
 
                 // Find dates that have unprocessed logs
                 var unprocessedDates = new List<DateTime>();
                 
                 foreach (var date in availableDates)
                 {
-                    var dateKey = GetDateKey(date);
-                    if (await HasUnprocessedLogs(date, processingState.GetValueOrDefault(dateKey, 0)))
+                    var dateKey = ProcessingStateIOService.GetDateKey(date);
+                    var processedCount = _processingStateIOService.GetProcessedCount(dateKey);
+                    if (await HasUnprocessedLogs(date, processedCount))
                     {
                         unprocessedDates.Add(date);
                     }
@@ -156,21 +152,17 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
         {
             try
             {
-                var logs = await _keyboardInputStorageService.GetPreviousLogsAsyncDecrypted(date);
+                var logs = await _keyboardLogIOService.GetPreviousLogsAsyncDecrypted(date);
                 var totalCount = logs.Count();
                 return totalCount > processedCount;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking unprocessed logs for date {Date}", date.ToString("yyyy-MM-dd"));
+                _logger.LogError(ex, "Error checking unprocessed logs for date {Date}", date.ToString("yyyyMMdd"));
                 return false;
             }
         }
 
-        private string GetDateKey(DateTime date)
-        {
-            return date.ToString("yyyy-MM-dd");
-        }
 
         private bool CheckResourcesAvailable()
         {
@@ -190,77 +182,35 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
 
         private async Task ProcessKeyboardLogBatch(List<Core.Models.KeyboardInputLog> keyboardLogs, DateTime date)
         {
-            foreach (var log in keyboardLogs)
+
+            // Check if any of the logs are empty
+            var nonEmptyLogs = keyboardLogs.Where(log => !string.IsNullOrWhiteSpace(log.Content)).ToList();
+            if (nonEmptyLogs.Count == 0)
             {
-                try
-                {
-                    // Skip if content is empty or contains only special characters
-                    if (string.IsNullOrWhiteSpace(log.Content) || log.Content.All(c => !char.IsLetterOrDigit(c)))
-                        continue;
-
-                    // Skip if content is too short
-                    if (log.Content.Length < 3)
-                        continue;
-
-                    // Skip special key combinations (only process text)
-                    if (log.Type != Core.Enums.KeyboardInputType.Text)
-                        continue;
-
-                    // Generate embedding
-                    var embedding = await _embeddingService.GenerateEmbeddingAsync(log);
-                    
-                    // Store embedding using the date parameter
-                    await _embeddingStorageService.SaveEmbeddingAsync(embedding, date);
-                    
-                    _logger.LogDebug("Generated and stored embedding for content of length {Length}", 
-                        log.Content.Length);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing keyboard log: {LogId}, Content: {Content}", 
-                        log.Timestamp, log.Content?.Substring(0, Math.Min(50, log.Content?.Length ?? 0)));
-                }
+                _logger.LogWarning("Skipping batch due to empty logs");
+                return;
             }
-        }
-
-        private Dictionary<string, int> LoadProcessingState()
-        {
+            
             try
-            {
-                var json = _fileStorageService.ReadFileIfExists(ProcessingStatePath);
-                
-                if (string.IsNullOrEmpty(json))
                 {
-                    return new Dictionary<string, int>();
-                }
-
-                return JsonConvert.DeserializeObject<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
+                // Generate embedding
+                var embeddings = await _embeddingService.GenerateEmbeddingsAsync(nonEmptyLogs);
+                
+                // Store embedding using the date parameter
+                await _embeddingIOService.SaveEmbeddingsAsync(embeddings, date);
+                
+                _logger.LogDebug("Generated and stored embedding for content of length {Length}", 
+                    nonEmptyLogs.Sum(log => log.Content.Length));
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error loading processing state, returning empty state");
-                return new Dictionary<string, int>();
+                _logger.LogError(ex, "Error processing keyboard log: {LogId}, Content: {Content}", 
+                    nonEmptyLogs.First().Timestamp, 
+                    nonEmptyLogs.First().Content is { Length: > 50 } content ? content[..50] : nonEmptyLogs.First().Content);
             }
+        
         }
 
-        private async Task UpdateProcessingState(string dateKey, int processedCount)
-        {
-            try
-            {
-                var processingState = LoadProcessingState();
-                processingState[dateKey] = processedCount;
-
-                var json = JsonConvert.SerializeObject(processingState, Formatting.Indented);
-                await _fileStorageService.WriteFileAsync(ProcessingStatePath, json, false);
-                
-                _logger.LogDebug("Updated processing state for {DateKey}: {ProcessedCount} logs", 
-                    dateKey, processedCount);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating processing state for {DateKey}", dateKey);
-            }
-        }
 
     }
 }

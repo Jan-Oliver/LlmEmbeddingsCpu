@@ -1,20 +1,20 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Common.Extensions;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
 using Microsoft.Extensions.Logging;
 
-namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
+namespace LlmEmbeddingsCpu.Data.WindowLogIO
 {
     /// <summary>
-    /// Manages the storage and retrieval of active window logs.
+    /// Manages the I/O operations for active window logs.
     /// </summary>
-    public class WindowMonitorStorageService(FileStorageService fileStorageService,
-        ILogger<WindowMonitorStorageService> logger)
+    public class WindowLogIOService(FileSystemIOService fileSystemIOService,
+        ILogger<WindowLogIOService> logger)
     {
-        private readonly FileStorageService _fileStorageService = fileStorageService;
+        private readonly FileSystemIOService _fileSystemIOService = fileSystemIOService;
         private readonly string _windowMonitorLogBaseFileName = "window_monitor_logs";
-        private readonly ILogger<WindowMonitorStorageService> _logger = logger;
+        private readonly ILogger<WindowLogIOService> _logger = logger;
 
         /// <summary>
         /// Generates a file path for a window monitor log file based on the specified date.
@@ -23,7 +23,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
         /// <returns>A string representing the file path.</returns>
         public string GetFilePath(DateTime date)
         {
-            string timestamp = date.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyyMMdd");
             return $"{_windowMonitorLogBaseFileName}-{timestamp}.txt";
         }
 
@@ -39,7 +39,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
             
             _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
-            await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
+            await _fileSystemIOService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
         /// <returns>An <see cref="IEnumerable{DateTime}"/> of dates to process.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
-            var files = _fileStorageService.ListFiles("*.txt");
+            var files = _fileSystemIOService.ListFiles("*.txt");
             var logFiles = files.Where(f =>  
                 f.StartsWith(_windowMonitorLogBaseFileName))
                 .OrderBy(f => f);
@@ -68,7 +68,7 @@ namespace LlmEmbeddingsCpu.Data.WindowMonitorStorage
                     if (dateStart > 0 && dateEnd > dateStart)
                     {
                         var dateStr = f.Substring(dateStart, dateEnd - dateStart);
-                        if (DateTime.TryParseExact(dateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
+                        if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
                         {
                             return logDate;
                         }

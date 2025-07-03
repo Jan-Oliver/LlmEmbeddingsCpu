@@ -1,7 +1,7 @@
 using Gma.System.MouseKeyHook;
 using System.Windows.Forms;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.MouseInputStorage;
+using LlmEmbeddingsCpu.Data.MouseLogIO;
 using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.MouseMonitor
@@ -10,11 +10,11 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
     /// Monitors global mouse click events and logs them.
     /// </summary>
     public class MouseMonitorService(
-        MouseInputStorageService mouseInputStorageService,
+        MouseLogIOService mouseInputStorageService,
         ILogger<MouseMonitorService> logger)
     {
         private IMouseEvents? _globalHook;
-        private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
+        private readonly MouseLogIOService _mouseInputStorageService = mouseInputStorageService;
         private readonly ILogger<MouseMonitorService> _logger = logger;
 
         /// <summary>

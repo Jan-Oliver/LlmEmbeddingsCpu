@@ -1,19 +1,18 @@
-using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
 using LlmEmbeddingsCpu.Core.Models;
 using Newtonsoft.Json;
 using Microsoft.Extensions.Logging;
 
-
-namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
+namespace LlmEmbeddingsCpu.Data.EmbeddingIO
 {
     /// <summary>
-    /// Manages the storage and retrieval of embedding data.
+    /// Manages the I/O operations for embedding data.
     /// </summary>
-    public class EmbeddingStorageService(FileStorageService fileStorageService, ILogger<EmbeddingStorageService> logger)
+    public class EmbeddingIOService(FileSystemIOService fileSystemIOService, ILogger<EmbeddingIOService> logger)
     {
-        private readonly FileStorageService _fileStorageService = fileStorageService;
+        private readonly FileSystemIOService _fileSystemIOService = fileSystemIOService;
         private readonly string _embeddingDirectoryName = "embeddings";
-        private readonly ILogger<EmbeddingStorageService> _logger = logger;
+        private readonly ILogger<EmbeddingIOService> _logger = logger;
 
         /// <summary>
         /// Gets the folder path for storing embeddings for a specific date.
@@ -22,7 +21,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
         /// <returns>The folder path for the specified date.</returns>
         public string GetFolderPath(DateTime date)
         {
-            string dateStr = date.ToString("yyyy-MM-dd");
+            string dateStr = date.ToString("yyyyMMdd");
             return Path.Combine(_embeddingDirectoryName, dateStr);
         }
 
@@ -39,7 +38,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
 
                 // Create directory path and ensure it exists
                 string datePath = GetFolderPath(date);
-                _fileStorageService.EnsureDirectoryExists(datePath);
+                _fileSystemIOService.EnsureDirectoryExists(datePath);
 
                 // Create file name using Path.Combine for proper path handling
                 string fileName = Path.Combine(datePath, $"{embedding.Id}.json");
@@ -48,7 +47,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
                 string json = JsonConvert.SerializeObject(embedding, Formatting.Indented);
                 
                 // Save to file
-                await _fileStorageService.WriteFileAsync(fileName, json);
+                await _fileSystemIOService.WriteFileAsync(fileName, json);
             }
             catch (Exception ex)
             {
@@ -102,18 +101,18 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             try
             {
                 // Create directory path for the given date
-                string directoryPath = Path.Combine(_embeddingDirectoryName, date.ToString("yyyy-MM-dd"));
+                string directoryPath = Path.Combine(_embeddingDirectoryName, date.ToString("yyyyMMdd"));
                 
                 var embeddings = new List<Embedding>();
                 
                 // Get all JSON files in the directory
-                var files = _fileStorageService.ListFiles(Path.Combine(directoryPath, "*.json"));
+                var files = _fileSystemIOService.ListFiles(Path.Combine(directoryPath, "*.json"));
                 
                 foreach (var file in files)
                 {
                     try
                     {
-                        string json = await _fileStorageService.ReadFileAsyncIfExists(file);
+                        string json = await _fileSystemIOService.ReadFileAsyncIfExists(file);
                         var embedding = JsonConvert.DeserializeObject<Embedding>(json);
                         if (embedding != null)
                         {
@@ -131,7 +130,7 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingStorage
             catch (Exception ex)
             {
                 _logger.LogError("Failed to get embeddings for date {Date}: {ErrorMessage}", date, ex.Message);
-                throw new InvalidOperationException($"Failed to get embeddings for date {date:yyyy-MM-dd}: {ex.Message}", ex);
+                throw new InvalidOperationException($"Failed to get embeddings for date {date:yyyyMMdd}: {ex.Message}", ex);
             }
         }
     }

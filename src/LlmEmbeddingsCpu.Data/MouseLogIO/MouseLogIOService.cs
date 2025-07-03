@@ -1,20 +1,20 @@
 using System.Globalization;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
 using Microsoft.Extensions.Logging;
 
-namespace LlmEmbeddingsCpu.Data.MouseInputStorage
+namespace LlmEmbeddingsCpu.Data.MouseLogIO
 {
     /// <summary>
-    /// Manages the storage and retrieval of mouse input logs.
+    /// Manages the I/O operations for mouse input logs.
     /// </summary>
-    public class MouseInputStorageService(
-        FileStorageService fileStorageService,
-        ILogger<MouseInputStorageService> logger)
+    public class MouseLogIOService(
+        FileSystemIOService fileSystemIOService,
+        ILogger<MouseLogIOService> logger)
     {
-        private readonly FileStorageService _fileStorageService = fileStorageService;
+        private readonly FileSystemIOService _fileSystemIOService = fileSystemIOService;
         private readonly string _mouseLogBaseFileName = "mouse_logs";
-        private readonly ILogger<MouseInputStorageService> _logger = logger;
+        private readonly ILogger<MouseLogIOService> _logger = logger;
 
         /// <summary>
         /// Generates a file path for a mouse log file based on the specified date.
@@ -23,7 +23,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         /// <returns>A string representing the file path.</returns>
         public string GetFilePath(DateTime date)
         {
-            string timestamp = date.ToString("yyyy-MM-dd");
+            string timestamp = date.ToString("yyyyMMdd");
             return $"{_mouseLogBaseFileName}-{timestamp}.txt";
         }
 
@@ -39,7 +39,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
             
             _logger.LogDebug("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
-            await _fileStorageService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
+            await _fileSystemIOService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
         /// <returns>An <see cref="IEnumerable{DateTime}"/> of dates to process.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
-            var files = _fileStorageService.ListFiles("*.txt");
+            var files = _fileSystemIOService.ListFiles("*.txt");
             var logFiles = files.Where(f =>  
                 f.StartsWith(_mouseLogBaseFileName))
                 .OrderBy(f => f);
@@ -68,7 +68,7 @@ namespace LlmEmbeddingsCpu.Data.MouseInputStorage
                     if (dateStart > 0 && dateEnd > dateStart)
                     {
                         var dateStr = f.Substring(dateStart, dateEnd - dateStart);
-                        if (DateTime.TryParseExact(dateStr, "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
+                        if (DateTime.TryParseExact(dateStr, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out DateTime logDate))
                         {
                             return logDate;
                         }
