@@ -27,14 +27,14 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             }
             else
             {
-                _basePath = Path.IsPathRooted(basePath) ? 
-                    basePath : 
+                _basePath = Path.IsPathRooted(basePath) ?
+                    basePath :
                     Path.Combine(AppDomain.CurrentDomain.BaseDirectory, basePath);
             }
-                
+
             // Create directory if it doesn't exist
             EnsureDirectoryExists(_basePath);
-            
+
             _logger.LogInformation("Storing logs in: {BasePath}", _basePath);
         }
 
@@ -98,6 +98,30 @@ namespace LlmEmbeddingsCpu.Data.FileStorage
             try
             {
                 return await File.ReadAllTextAsync(fullPath);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "IO error reading from {FilePath}", fullPath);
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error reading from {FilePath}", fullPath);
+                return string.Empty;
+            }
+        }
+
+        public string ReadFileIfExists(string filename)
+        {
+            string fullPath = GetFullPath(filename);
+            if (!File.Exists(fullPath))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                return File.ReadAllText(fullPath);
             }
             catch (IOException ex)
             {

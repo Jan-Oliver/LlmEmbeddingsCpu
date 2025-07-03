@@ -73,30 +73,67 @@ end;
 Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Microsoft VC++ Runtime..."; Check: ShouldInstallVcRedist
 
 ; --------------------------------------------------------------------
-; Register the autostart Task‑Scheduler job (single line, no breaks)
+; Task 1: Logger - runs on user logon continuously
 ; --------------------------------------------------------------------
 Filename: "{sys}\schtasks.exe"; \
-Parameters: "/Create /F /RL HIGHEST /SC ONLOGON /DELAY 0000:10 /TN ""LLMEmbeddingsCpuHooks"" /TR ""'{app}\LlmEmbeddingsCpu.App.exe'"" /IT"; \
+Parameters: "/Create /F /RL HIGHEST /SC ONLOGON /DELAY 0000:10 /TN ""LLMEmbeddingsCpuLogger"" /TR ""'{app}\LlmEmbeddingsCpu.App.exe' --logger"" /IT"; \
 Flags: runhidden waituntilterminated; \
-StatusMsg: "Registering autostart task..."
+StatusMsg: "Registering logger task..."
 
-; Patch battery + time-limit settings --------------------------------
+; Patch battery + time-limit settings for Logger
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
-Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-ScheduledTask -TaskName 'LLMEmbeddingsCpuHooks'; $s = $t.Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -TaskName 'LLMEmbeddingsCpuHooks' -Settings $s"""; \
+Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-ScheduledTask -TaskName 'LLMEmbeddingsCpuLogger'; $s = $t.Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -TaskName 'LLMEmbeddingsCpuLogger' -Settings $s"""; \
 Flags: runhidden waituntilterminated; \
-StatusMsg: "Removing battery & time‑limit restrictions..."
+StatusMsg: "Configuring logger task settings..."
 
-; --- Run the agent once right now -------------------------
+; --------------------------------------------------------------------
+; Task 2: Nightly Cron - runs daily at midnight
+; --------------------------------------------------------------------
+Filename: "{sys}\schtasks.exe"; \
+Parameters: "/Create /F /RL HIGHEST /SC DAILY /ST 00:00 /TN ""LLMEmbeddingsCpuCron"" /TR ""'{app}\LlmEmbeddingsCpu.App.exe' --cron-processor"" /IT"; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Registering nightly cron task..."
+
+; Configure nightly cron task settings (wake computer and run on battery)
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-ScheduledTask -TaskName 'LLMEmbeddingsCpuCron'; $s = $t.Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.WakeToRun = $true; $s.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -TaskName 'LLMEmbeddingsCpuCron' -Settings $s"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Configuring nightly cron task settings..."
+
+; --------------------------------------------------------------------
+; Task 3: Aggregator - runs hourly
+; --------------------------------------------------------------------
+Filename: "{sys}\schtasks.exe"; \
+Parameters: "/Create /F /RL HIGHEST /SC HOURLY /TN ""LLMEmbeddingsCpuAggregator"" /TR ""'{app}\LlmEmbeddingsCpu.App.exe' --aggregator"" /IT"; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Registering aggregator task..."
+
+; Configure aggregator task settings
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; \
+Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-ScheduledTask -TaskName 'LLMEmbeddingsCpuAggregator'; $s = $t.Settings; $s.DisallowStartIfOnBatteries = $false; $s.StopIfGoingOnBatteries = $false; $s.ExecutionTimeLimit = 'PT0S'; Set-ScheduledTask -TaskName 'LLMEmbeddingsCpuAggregator' -Settings $s"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Configuring aggregator task settings..."
+
+; --- Run the logger agent once right now -------------------------
 Filename: "{app}\LlmEmbeddingsCpu.App.exe"; \
+Parameters: "--logger"; \
 Flags: runhidden nowait; \
-StatusMsg: "Launching background agent..."
+StatusMsg: "Launching background logger agent..."
 
 ; ----------------------------------------------------------------------
 ; Uninstall: clean up
 ; - Remove the task from scheduler
 ; ----------------------------------------------------------------------
 [UninstallRun]
-; Remove the scheduled task
+; Remove all scheduled tasks
 Filename: "schtasks.exe"; \
-Parameters: "/Delete /TN ""LLMEmbeddingsCpuHooks"" /F"; \
+Parameters: "/Delete /TN ""LLMEmbeddingsCpuLogger"" /F"; \
+Flags: runhidden waituntilterminated
+
+Filename: "schtasks.exe"; \
+Parameters: "/Delete /TN ""LLMEmbeddingsCpuCron"" /F"; \
+Flags: runhidden waituntilterminated
+
+Filename: "schtasks.exe"; \
+Parameters: "/Delete /TN ""LLMEmbeddingsCpuAggregator"" /F"; \
 Flags: runhidden waituntilterminated
