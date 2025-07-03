@@ -38,11 +38,6 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         private IntPtr _hookHandle = IntPtr.Zero;
         private readonly WinEventDelegate _eventDelegate; // Keep a reference to prevent GC
 
-        /// <summary>
-        /// Occurs when the active window changes.
-        /// </summary>
-        public event EventHandler<ActiveWindowLog>? ActiveWindowChanged;
-
         private readonly WindowMonitorStorageService _windowMonitorStorageService;
         private readonly ILogger<WindowMonitorrService> _logger;
         
@@ -120,8 +115,6 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                             _logger.LogError("Error during storage operation: {ErrorMessage}", storageEx.StackTrace);
                         }
                     });
-
-                    ActiveWindowChanged?.Invoke(this, windowInfo);
                 }
                 catch (Exception ex)
                 {
@@ -136,7 +129,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         /// </summary>
         /// <param name="hWnd">The handle of the window.</param>
         /// <returns>An <see cref="ActiveWindowLog"/> containing information about the window.</returns>
-        private static ActiveWindowLog GetActiveWindowInfo(IntPtr hWnd, ILogger logger)
+        private static ActiveWindowLog? GetActiveWindowInfo(IntPtr hWnd, ILogger logger)
         {
             if (hWnd == IntPtr.Zero) return null;
 
@@ -145,8 +138,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             int result = GetWindowText(hWnd, windowTitleBuilder, windowTitleBuilder.Capacity);
             string windowTitle = result > 0 ? windowTitleBuilder.ToString() : string.Empty;
 
-            uint processIdRaw;
-            uint threadId = GetWindowThreadProcessId(hWnd, out processIdRaw);
+            uint threadId = GetWindowThreadProcessId(hWnd, out uint processIdRaw);
             if (threadId == 0)
             {
                 return null;

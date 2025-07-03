@@ -16,11 +16,6 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
         private IMouseEvents? _globalHook;
         private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
         private readonly ILogger<MouseMonitorService> _logger = logger;
-        
-        /// <summary>
-        /// Occurs when text is captured (not used in this implementation).
-        /// </summary>
-        public event EventHandler<string>? TextCaptured;
 
         /// <summary>
         /// Starts monitoring global mouse click events.

