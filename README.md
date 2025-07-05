@@ -158,27 +158,89 @@ The application determines its mode based on command-line arguments:
 The Logger mode is the primary continuous process that captures user activity.
 
 ```mermaid
-graph TD
-    A[Logger Process Start] --> B[Initialize Services]
-    B --> C[KeyboardMonitorService]
-    B --> D[MouseMonitorService]
-    B --> E[WindowMonitorrService]
-    B --> F[ResourceMonitorService]
+%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+sequenceDiagram
+    participant User as 👤 User
+    participant Program as 📱 Program.cs
+    participant DI as 🔧 DI Container
+    participant KMS as ⌨️ KeyboardMonitorService
+    participant MMS as 🖱️ MouseMonitorService
+    participant WMS as 🪟 WindowMonitorrService
+    participant RMS as 📊 ResourceMonitorService
+    participant KLIO as 📝 KeyboardLogIOService
+    participant MLIO as 📄 MouseLogIOService
+    participant WLIO as 🗂️ WindowLogIOService
+    participant FS as 💾 FileSystemIOService
+    participant Proc as ⚙️ Processor
     
-    C --> G[Global Keyboard Hook]
-    D --> H[Global Mouse Hook]
-    E --> I[Window Change Detection]
-    F --> J[CPU Usage Monitoring]
+    Note over Program: Application Startup
+    Program->>Program: ParseLaunchMode(args)
+    Program->>Program: ConfigureServices()
+    Program->>DI: RegisterLoggerServices()
+    Program->>DI: GetServices()
     
-    G --> K[Buffer Keystrokes]
-    K --> L[Flush to File on Special Key/Buffer Full]
+    Note over Program: Service Initialization
+    Program->>KMS: StartTracking()
+    KMS->>KMS: Setup Global Keyboard Hook
+    Program->>MMS: StartTracking()
+    MMS->>MMS: Setup Global Mouse Hook
+    Program->>WMS: StartTracking()
+    WMS->>WMS: Setup Windows Event Hook
+    Program->>RMS: StartMonitoring()
+    RMS->>RMS: Setup 3-minute Timer
     
-    H --> M[Log Mouse Events]
-    I --> N[Log Window Changes]
+    Program->>Program: Application.Run()
+    Note over Program: Main Event Loop Active
     
-    J --> O{CPU < 30% for 3 checks?}
-    O -->|Yes| P[Launch Processor]
-    O -->|No| J
+    par Keyboard Input Handling
+        User->>KMS: Types Characters
+        KMS->>KMS: Buffer Characters (max 1,000)
+        alt Buffer Full or Special Key
+            KMS->>KMS: FlushBuffer()
+            KMS->>KLIO: SaveLogAsyncAndEncrypt(log)
+            KLIO->>KLIO: Apply ROT13 Encryption
+            KLIO->>FS: WriteFileAsync(encrypted_data)
+            FS->>FS: Append to keyboard_logs-yyyyMMdd.txt
+        end
+    and Mouse Input Handling
+        User->>MMS: Mouse Click
+        MMS->>MLIO: SaveLogAsync(mouse_log)
+        Note over MLIO: No encryption applied
+        MLIO->>FS: WriteFileAsync(mouse_data)
+        FS->>FS: Append to mouse_logs-yyyyMMdd.txt
+    and Window Change Handling
+        User->>WMS: Changes Window Focus
+        WMS->>WMS: WinEventProc() Callback
+        WMS->>WMS: GetActiveWindowInfo()
+        WMS->>WMS: Task.Run(async save)
+        WMS->>WLIO: SaveLogAsync(window_log)
+        WLIO->>WLIO: Apply ROT13 to title & process
+        WLIO->>FS: WriteFileAsync(encrypted_window_data)
+        FS->>FS: Append to window_monitor_logs-yyyyMMdd.txt
+    and Resource Monitoring
+        loop Every 3 Minutes
+            RMS->>RMS: OnMonitoringTimerElapsed()
+            RMS->>RMS: CheckResourcesAndTriggerProcessing()
+            RMS->>RMS: Get CPU Usage
+            alt CPU < 30% for 3 consecutive checks
+                RMS->>RMS: HasUnprocessedWork()
+                RMS->>FS: Check processing_state.json
+                RMS->>FS: Count lines in log files
+                alt Has Unprocessed Work
+                    RMS->>Proc: TriggerContinuousProcessor()
+                    Note over Proc: Starts new --processor process
+                end
+            end
+        end
+    end
+    
+    Note over Program: On Application Shutdown
+    Program->>KMS: StopTracking()
+    KMS->>KMS: FlushBuffer()
+    KMS->>KLIO: SaveLogAsyncAndEncrypt(final_buffer)
+    Program->>MMS: StopTracking()
+    Program->>WMS: StopTracking()
+    Program->>RMS: StopMonitoring()
 ```
 
 **Key Features:**
@@ -199,27 +261,103 @@ graph TD
 The Processor mode handles opportunistic batch processing when system resources permit.
 
 ```mermaid
-graph TD
-    A[Processor Start] --> B[Load Processing State]
-    B --> C[Get Unprocessed Dates]
-    C --> D{Any Dates to Process?}
-    D -->|No| E[Exit]
-    D -->|Yes| F[Select Date]
+%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+sequenceDiagram
+    participant Program as 📱 Program.cs
+    participant CPS as ⚡ ContinuousProcessingService
+    participant PSIS as 📊 ProcessingStateIOService
+    participant KLIS as 📝 KeyboardLogIOService
+    participant IES as 🤖 IntfloatEmbeddingService
+    participant EIS as 🧠 EmbeddingIOService
+    participant CPU as 💻 PerformanceCounter
+    participant FS as 💾 FileSystemIOService
     
-    F --> G[Load Keyboard Logs]
-    G --> H[Check Current Position]
-    H --> I{More Logs?}
-    I -->|No| J[Mark Date Complete]
-    I -->|Yes| K{CPU < 80%?}
+    Note over Program: Processor Mode Startup
+    Program->>Program: RunProcessorMode()
+    Program->>CPS: StartProcessingAsync()
     
-    K -->|No| L[Graceful Shutdown]
-    K -->|Yes| M[Process Batch of 10]
-    M --> N[Generate Embeddings]
-    N --> O[Save Embeddings]
-    O --> P[Update Processing State]
-    P --> I
+    Note over CPS: Get Dates to Process
+    CPS->>CPS: GetDatesToProcessAsync()
+    CPS->>KLIS: GetDatesToProcess()
+    KLIS-->>CPS: available_dates[]
     
-    J --> C
+    loop For each available date
+        CPS->>CPS: ProcessingStateIOService.GetDateKey(date)
+        CPS->>PSIS: GetProcessedCount(dateKey)
+        PSIS-->>CPS: processed_count
+        CPS->>CPS: HasUnprocessedLogs(date, processed_count)
+        CPS->>KLIS: GetPreviousLogsAsyncDecrypted(date)
+        KLIS->>FS: ReadFileAsync(keyboard_logs-yyyyMMdd.txt)
+        KLIS->>KLIS: Decrypt ROT13 content
+        KLIS-->>CPS: total_logs[]
+        CPS->>CPS: Check if total_logs.Count > processed_count
+    end
+    
+    alt No dates to process
+        CPS->>Program: Exit (no work)
+    else Has dates to process
+        CPS->>CPS: Select target date
+        
+        Note over CPS: Load Processing State for Target Date
+        CPS->>CPS: ProcessingStateIOService.GetDateKey(targetDate)
+        CPS->>PSIS: GetProcessedCount(dateKey)
+        PSIS-->>CPS: processedCount
+        
+        Note over CPS: Load All Logs for Target Date
+        CPS->>KLIS: GetPreviousLogsAsyncDecrypted(targetDate)
+        KLIS->>FS: ReadFileAsync(keyboard_logs-yyyyMMdd.txt)
+        KLIS->>KLIS: Parse and decrypt all logs
+        KLIS-->>CPS: allLogs[]
+        
+        Note over CPS: Batch Processing Loop
+        loop While processedCount < allLogs.Count
+            CPS->>CPS: CheckResourcesAvailable()
+            CPS->>CPU: NextValue()
+            CPU-->>CPS: current_cpu_usage
+            CPS->>CPS: Check if CPU < 80%
+            
+            alt CPU < 80%
+                CPS->>CPS: allLogs.Skip(processedCount).Take(10)
+                CPS->>CPS: ProcessKeyboardLogBatch(batchLogs, targetDate)
+                
+                Note over CPS: Filter empty logs
+                CPS->>CPS: Where(!string.IsNullOrWhiteSpace(log.Content))
+                
+                Note over CPS: Generate Embeddings
+                CPS->>IES: GenerateEmbeddingsAsync(nonEmptyLogs)
+                IES->>IES: Create ONNX InferenceSession
+                loop For each log
+                    IES->>IES: PreprocessText(log.Content)
+                    IES->>IES: _tokenizer.Encode(preprocessedText)
+                    IES->>IES: GenerateEmbeddingVector(session, tokens)
+                    IES->>IES: Create Embedding object
+                end
+                IES-->>CPS: embeddings[]
+                
+                Note over CPS: Save Embeddings
+                CPS->>EIS: SaveEmbeddingsAsync(embeddings, targetDate)
+                EIS->>FS: EnsureDirectoryExists(embeddings/yyyyMMdd/)
+                loop For each embedding
+                    EIS->>FS: WriteFileAsync({embedding.Id}.json)
+                end
+                EIS-->>CPS: Success
+                
+                Note over CPS: Update Processing State
+                CPS->>CPS: processedCount += BatchSize (10)
+                CPS->>PSIS: UpdateProcessedCount(dateKey, processedCount)
+                PSIS->>FS: Save processing_state.json
+                PSIS-->>CPS: Success
+                
+            else CPU >= 80%
+                CPS->>CPS: Graceful shutdown
+                CPS->>Program: Exit (resource constrained)
+            end
+        end
+        
+        Note over CPS: Date Complete
+        CPS->>CPS: All logs processed for date
+        CPS->>Program: Processing complete
+    end
 ```
 
 **Key Features:**
@@ -240,20 +378,87 @@ graph TD
 The CronProcessor mode ensures complete processing during scheduled times.
 
 ```mermaid
-graph TD
-    A[CronProcessor Start] --> B[Load All Unprocessed Dates]
-    B --> C{Any Dates?}
-    C -->|No| D[Exit]
-    C -->|Yes| E[Process Each Date]
+%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+sequenceDiagram
+    participant Program as 📱 Program.cs
+    participant CRPS as ⏰ CronProcessingService
+    participant PSIS as 📊 ProcessingStateIOService
+    participant KLIS as 📝 KeyboardLogIOService
+    participant IES as 🤖 IntfloatEmbeddingService
+    participant EIS as 🧠 EmbeddingIOService
+    participant FS as 💾 FileSystemIOService
     
-    E --> F[Load All Logs for Date]
-    F --> G[Skip Already Processed]
-    G --> H[Generate All Embeddings]
-    H --> I[Save All Embeddings]
-    I --> J[Update Processing State]
-    J --> K{More Dates?}
-    K -->|Yes| E
-    K -->|No| D
+    Note over Program: CronProcessor Mode Startup
+    Program->>Program: RunCronProcessorMode()
+    Program->>CRPS: StartProcessingAsync()
+    
+    Note over CRPS: Get All Dates to Process
+    CRPS->>KLIS: GetDatesToProcess()
+    KLIS-->>CRPS: available_dates[]
+    
+    alt No dates to process
+        CRPS->>Program: Exit (no work)
+    else Has dates to process
+        loop For each available date
+            CRPS->>CRPS: ProcessDateCompletely(date)
+            
+            Note over CRPS: Load Processing State for Date
+            CRPS->>CRPS: ProcessingStateIOService.GetDateKey(date)
+            CRPS->>PSIS: GetProcessedCount(dateKey)
+            PSIS-->>CRPS: processedCount
+            
+            Note over CRPS: Load All Logs for Date
+            CRPS->>KLIS: GetPreviousLogsAsyncDecrypted(date)
+            KLIS->>FS: ReadFileAsync(keyboard_logs-yyyyMMdd.txt)
+            KLIS->>KLIS: Parse and decrypt all logs
+            KLIS-->>CRPS: allLogs[]
+            
+            alt Already fully processed
+                CRPS->>CRPS: Skip date (processedCount == allLogs.Count)
+            else Has unprocessed logs
+                Note over CRPS: Complete Batch Processing (No Resource Checks)
+                loop While processedCount < allLogs.Count
+                    CRPS->>CRPS: allLogs.Skip(processedCount).Take(10)
+                    CRPS->>CRPS: ProcessKeyboardLogBatch(batchLogs, date)
+                    
+                    Note over CRPS: Filter empty logs
+                    CRPS->>CRPS: Where(!string.IsNullOrWhiteSpace(log.Content))
+                    
+                    Note over CRPS: Generate Embeddings
+                    CRPS->>IES: GenerateEmbeddingsAsync(nonEmptyLogs)
+                    IES->>IES: Create ONNX InferenceSession
+                    loop For each log
+                        IES->>IES: PreprocessText(log.Content)
+                        IES->>IES: _tokenizer.Encode(preprocessedText)
+                        IES->>IES: GenerateEmbeddingVector(session, tokens)
+                        IES->>IES: Create Embedding object
+                    end
+                    IES-->>CRPS: embeddings[]
+                    
+                    Note over CRPS: Save Embeddings
+                    CRPS->>EIS: SaveEmbeddingsAsync(embeddings, date)
+                    EIS->>FS: EnsureDirectoryExists(embeddings/yyyyMMdd/)
+                    loop For each embedding
+                        EIS->>FS: WriteFileAsync({embedding.Id}.json)
+                    end
+                    EIS-->>CRPS: Success
+                    
+                    Note over CRPS: Update Processing State
+                    CRPS->>CRPS: processedCount += BatchSize (10)
+                    CRPS->>PSIS: UpdateProcessedCount(dateKey, processedCount)
+                    PSIS->>FS: Save processing_state.json
+                    PSIS-->>CRPS: Success
+                    
+                    Note over CRPS: Continue processing (no resource checks)
+                end
+                
+                Note over CRPS: Date fully processed
+            end
+        end
+        
+        Note over CRPS: All dates processed
+        CRPS->>Program: Complete processing
+    end
 ```
 
 **Key Features:**
@@ -267,29 +472,118 @@ graph TD
 The Aggregator mode performs housekeeping and prepares data for upload.
 
 ```mermaid
-graph TD
-    A[Aggregator Start] --> B[Find Completed Dates]
-    B --> C{Any Complete?}
-    C -->|No| D[Exit]
-    C -->|Yes| E[Select Date]
+%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+sequenceDiagram
+    participant Program as 📱 Program.cs
+    participant AS as 📦 AggregationService
+    participant PSIS as 📊 ProcessingStateIOService
+    participant KLIS as 📝 KeyboardLogIOService
+    participant MLIS as 📄 MouseLogIOService
+    participant WLIS as 🗂️ WindowLogIOService
+    participant EIS as 🧠 EmbeddingIOService
+    participant FS as 💾 FileSystemIOService
+    participant Env as 🔧 Environment
     
-    E --> F[Create Archive Structure]
-    F --> G[upload-queue/hostname-user-YYYYMMDD/]
-    G --> H[Create Subdirectories]
-    H --> I[logs/]
-    H --> J[embeddings/]
+    Note over Program: Aggregator Mode Startup
+    Program->>Program: RunAggregatorMode()
+    Program->>AS: StartAggregationAsync()
     
-    I --> K[Move Log Files]
-    J --> L[Move Embedding Files]
+    Note over AS: Find Completed Dates
+    AS->>AS: GetCompletedDatesAsync()
+    AS->>KLIS: GetDatesToProcess()
+    KLIS-->>AS: available_dates[]
     
-    K --> M{DEBUG Mode?}
-    M -->|Yes| N[Move Keyboard Logs]
-    M -->|No| O[Delete Keyboard Logs]
+    loop For each available date
+        AS->>AS: ProcessingStateIOService.GetDateKey(date)
+        AS->>PSIS: GetProcessedCount(dateKey)
+        PSIS-->>AS: processedCount
+        AS->>AS: IsDateCompleteAsync(date, processedCount)
+        AS->>KLIS: GetPreviousLogsAsyncDecrypted(date)
+        KLIS-->>AS: total_logs[]
+        AS->>AS: Check if totalCount == processedCount
+    end
+    AS->>AS: Filter and sort completed dates
     
-    L --> P[Remove from Processing State]
-    P --> Q{More Dates?}
-    Q -->|Yes| E
-    Q -->|No| D
+    alt No completed dates
+        AS->>Program: Exit (no work)
+    else Has completed dates
+        loop For each completed date
+            AS->>AS: AggregateCompletedDate(date)
+            
+            Note over AS: Create Archive Structure
+            AS->>Env: Environment.MachineName
+            Env-->>AS: hostname
+            AS->>Env: Environment.UserName
+            Env-->>AS: userId
+            AS->>AS: Create path: upload-queue/{hostname}-{userId}-{yyyyMMdd}
+            AS->>AS: Create subdirectories: logs/, embeddings/
+            AS->>FS: EnsureDirectoryExists(combinedPath)
+            AS->>FS: EnsureDirectoryExists(logsPath)
+            AS->>FS: EnsureDirectoryExists(embeddingsPath)
+            
+            Note over AS: Move Log Files
+            AS->>AS: MoveWindowLogs(date, logsPath)
+            AS->>WLIS: GetFilePath(date)
+            WLIS-->>AS: window_monitor_logs-yyyyMMdd.txt
+            AS->>FS: CheckIfFileExists(windowLogFilePath)
+            FS-->>AS: exists
+            alt File exists
+                AS->>FS: MoveFile(source, logs/window_monitor_logs.txt)
+            end
+            
+            AS->>AS: MoveMouseLogs(date, logsPath)
+            AS->>MLIS: GetFilePath(date)
+            MLIS-->>AS: mouse_logs-yyyyMMdd.txt
+            AS->>FS: CheckIfFileExists(mouseLogFilePath)
+            FS-->>AS: exists
+            alt File exists
+                AS->>FS: MoveFile(source, logs/mouse_logs.txt)
+            end
+            
+            AS->>AS: MoveKeyboardLogs(date, logsPath)
+            AS->>KLIS: GetFilePath(date)
+            KLIS-->>AS: keyboard_logs-yyyyMMdd.txt
+            AS->>FS: CheckIfFileExists(keyboardLogFilePath)
+            FS-->>AS: exists
+            alt File exists
+                alt DEBUG Mode
+                    AS->>FS: MoveFile(source, logs/keyboard_logs.txt)
+                else RELEASE Mode
+                    AS->>FS: DeleteFile(keyboardLogFilePath)
+                end
+                Note over AS: Cleanup Processing State (in MoveKeyboardLogs)
+                AS->>AS: ProcessingStateIOService.GetDateKey(date)
+                AS->>PSIS: RemoveDate(dateKey)
+                PSIS->>FS: Update processing_state.json
+            end
+            
+            AS->>AS: MoveApplicationLogs(date, logsPath)
+            loop For each LaunchMode
+                AS->>AS: Create pattern: application-{mode}-{yyyyMMdd}.log
+                AS->>FS: GetFullPath(pattern)
+                AS->>FS: CheckIfFileExists(logFilePath)
+                FS-->>AS: exists
+                alt File exists
+                    AS->>FS: MoveFile(source, logs/{pattern})
+                end
+            end
+            
+            Note over AS: Move Embeddings
+            AS->>AS: MoveEmbeddings(date, embeddingsPath)
+            AS->>EIS: GetFolderPath(date)
+            EIS-->>AS: embeddings/yyyyMMdd/
+            AS->>FS: CheckIfDirectoryExists(embeddingsDir)
+            FS-->>AS: exists
+            alt Directory exists
+                AS->>FS: MoveFolder(source, embeddings/{yyyyMMdd}/)
+            end
+            
+            Note over AS: Date aggregation complete
+        end
+        
+        Note over AS: All completed dates processed
+        AS->>Program: Aggregation complete
+    end
 ```
 
 **Archive Structure:**
