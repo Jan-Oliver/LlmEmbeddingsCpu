@@ -153,12 +153,110 @@ The application determines its mode based on command-line arguments:
 - `--cron-processor`: Executes scheduled complete processing
 - `--aggregator`: Archives completed data
 
-### 2.2 Main Logger Process
+
+### 2.2 Service Interaction Flow
+
+The complete system operates through a sophisticated service architecture where each component has specific responsibilities and interactions:
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
+graph TB
+    %% Service Flow
+    subgraph "Service Architecture"
+        direction TB
+        subgraph "Monitoring Services"
+            KMS["<b>KeyboardMonitorService</b><br/>⌨️ Global Keyboard Hooks"]
+            MMS["<b>MouseMonitorService</b><br/>🖱️ Global Mouse Hooks"]
+            WMS["<b>WindowMonitorrService</b><br/>🪟 Window Focus Tracking"]
+            RMS["<b>ResourceMonitorService</b><br/>📊 CPU Usage & Process Launching"]
+        end
+        
+        subgraph "Processing Services"
+            CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-Aware Processing"]
+            CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled Processing"]
+            IES["<b>IntfloatEmbeddingService</b><br/>🤖 ONNX Model Execution"]
+        end
+        
+        subgraph "Data Services"
+            KLIS["<b>KeyboardLogIOService</b><br/>📝 Encrypted Keyboard Logs"]
+            MLIS["<b>MouseLogIOService</b><br/>🖱️ Mouse Event Logs"]
+            WLIS["<b>WindowLogIOService</b><br/>🪟 Encrypted Window Logs"]
+            EIS["<b>EmbeddingIOService</b><br/>🧠 Embedding Storage"]
+            PSIS["<b>ProcessingStateIOService</b><br/>📊 Progress Tracking"]
+        end
+        
+        subgraph "Aggregation"
+            AS["<b>AggregationService</b><br/>📦 Data Archiving"]
+        end
+    end
+    
+    %% Data Flow
+    KMS --> KLIS
+    MMS --> MLIS
+    WMS --> WLIS
+    RMS --> CPS
+    
+    CPS --> KLIS
+    CPS --> IES
+    CPS --> EIS
+    CPS --> PSIS
+    
+    CRPS --> KLIS
+    CRPS --> IES
+    CRPS --> EIS
+    CRPS --> PSIS
+    
+    AS --> KLIS
+    AS --> MLIS
+    AS --> WLIS
+    AS --> EIS
+    AS --> PSIS
+    
+    %% Launch Modes
+    subgraph "Launch Modes"
+        Logger["<b>--logger</b><br/>🔍 Continuous Monitoring"]
+        Processor["<b>--processor</b><br/>⚡ Resource-Aware Processing"]
+        CronProcessor["<b>--cron-processor</b><br/>⏰ Scheduled Processing"]
+        Aggregator["<b>--aggregator</b><br/>📦 Data Archiving"]
+    end
+    
+    Logger -.-> KMS
+    Logger -.-> MMS
+    Logger -.-> WMS
+    Logger -.-> RMS
+    
+    Processor -.-> CPS
+    CronProcessor -.-> CRPS
+    Aggregator -.-> AS
+    
+    %% Styling
+    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:3px,color:#000000
+    classDef mode fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000000
+    
+    class KMS,MMS,WMS,RMS,CPS,CRPS,IES,KLIS,MLIS,WLIS,EIS,PSIS,AS service
+    class Logger,Processor,CronProcessor,Aggregator mode
+```
+
+**Service Interaction Summary:**
+
+1. **Logger Mode**: All monitoring services capture user activity in real-time, with ResourceMonitorService automatically launching processors when CPU usage is low
+2. **Processor Mode**: ContinuousProcessingService processes logs in resource-aware batches, generating embeddings through IntfloatEmbeddingService
+3. **CronProcessor Mode**: CronProcessingService ensures complete processing of all pending logs during scheduled times
+4. **Aggregator Mode**: AggregationService archives completed data from all IO services into upload-ready structures
+
+**Key Interactions:**
+- **Monitoring → Data**: Direct flow from monitor services to their respective IO services
+- **Processing → Multiple Services**: Processing services coordinate with multiple IO services for reading logs, generating embeddings, and tracking progress
+- **Resource Management**: ResourceMonitorService acts as the bridge between monitoring and processing by launching processors when resources permit
+- **State Persistence**: ProcessingStateIOService ensures processing can resume after interruptions
+
+
+### 2.3 Main Logger Process
 
 The Logger mode is the primary continuous process that captures user activity.
 
 ```mermaid
-%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant User as 👤 User
     participant Program as 📱 Program.cs
@@ -256,12 +354,12 @@ sequenceDiagram
 - `mouse_logs-YYYYMMDD.txt`: Unencrypted mouse activity
 - `application-logger-YYYYMMDD.log`: Application logs
 
-### 2.3 Continuous Processor
+### 2.4 Continuous Processor
 
 The Processor mode handles opportunistic batch processing when system resources permit.
 
 ```mermaid
-%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant Program as 📱 Program.cs
     participant CPS as ⚡ ContinuousProcessingService
@@ -373,12 +471,12 @@ sequenceDiagram
 3. Stores embeddings in `embeddings/YYYYMMDD/{id}.json`
 4. Updates processing progress
 
-### 2.4 Cron Processor
+### 2.5 Cron Processor
 
 The CronProcessor mode ensures complete processing during scheduled times.
 
 ```mermaid
-%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
+%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant Program as 📱 Program.cs
     participant CRPS as ⏰ CronProcessingService
@@ -467,12 +565,11 @@ sequenceDiagram
 - Ensures no logs are left unprocessed
 - Handles large backlogs efficiently
 
-### 2.5 Aggregator
+### 2.6 Aggregator
 
 The Aggregator mode performs housekeeping and prepares data for upload.
 
 ```mermaid
-%%{init: {'theme':'default', 'themeVariables': { 'background': '#ffffff', 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'actorBkg': '#ffffff', 'actorBorder': '#000000', 'actorTextColor': '#000000', 'activationBkgColor': '#f0f0f0', 'activationBorderColor': '#000000', 'sequenceNumberColor': '#000000', 'sectionBkgColor': '#ffffff', 'altBkgColor': '#f9f9f9', 'gridColor': '#cccccc', 'gridTextColor': '#000000', 'loopTextColor': '#000000'}}}%%
 sequenceDiagram
     participant Program as 📱 Program.cs
     participant AS as 📦 AggregationService
@@ -601,102 +698,6 @@ upload-queue/
             ├── {id2}.json
             └── ...
 ```
-
-### 2.6 Service Interaction Flow
-
-The complete system operates through a sophisticated service architecture where each component has specific responsibilities and interactions:
-
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
-graph TB
-    %% Service Flow
-    subgraph "Service Architecture"
-        direction TB
-        subgraph "Monitoring Services"
-            KMS["<b>KeyboardMonitorService</b><br/>⌨️ Global Keyboard Hooks"]
-            MMS["<b>MouseMonitorService</b><br/>🖱️ Global Mouse Hooks"]
-            WMS["<b>WindowMonitorrService</b><br/>🪟 Window Focus Tracking"]
-            RMS["<b>ResourceMonitorService</b><br/>📊 CPU Usage & Process Launching"]
-        end
-        
-        subgraph "Processing Services"
-            CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-Aware Processing"]
-            CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled Processing"]
-            IES["<b>IntfloatEmbeddingService</b><br/>🤖 ONNX Model Execution"]
-        end
-        
-        subgraph "Data Services"
-            KLIS["<b>KeyboardLogIOService</b><br/>📝 Encrypted Keyboard Logs"]
-            MLIS["<b>MouseLogIOService</b><br/>🖱️ Mouse Event Logs"]
-            WLIS["<b>WindowLogIOService</b><br/>🪟 Encrypted Window Logs"]
-            EIS["<b>EmbeddingIOService</b><br/>🧠 Embedding Storage"]
-            PSIS["<b>ProcessingStateIOService</b><br/>📊 Progress Tracking"]
-        end
-        
-        subgraph "Aggregation"
-            AS["<b>AggregationService</b><br/>📦 Data Archiving"]
-        end
-    end
-    
-    %% Data Flow
-    KMS --> KLIS
-    MMS --> MLIS
-    WMS --> WLIS
-    RMS --> CPS
-    
-    CPS --> KLIS
-    CPS --> IES
-    CPS --> EIS
-    CPS --> PSIS
-    
-    CRPS --> KLIS
-    CRPS --> IES
-    CRPS --> EIS
-    CRPS --> PSIS
-    
-    AS --> KLIS
-    AS --> MLIS
-    AS --> WLIS
-    AS --> EIS
-    AS --> PSIS
-    
-    %% Launch Modes
-    subgraph "Launch Modes"
-        Logger["<b>--logger</b><br/>🔍 Continuous Monitoring"]
-        Processor["<b>--processor</b><br/>⚡ Resource-Aware Processing"]
-        CronProcessor["<b>--cron-processor</b><br/>⏰ Scheduled Processing"]
-        Aggregator["<b>--aggregator</b><br/>📦 Data Archiving"]
-    end
-    
-    Logger -.-> KMS
-    Logger -.-> MMS
-    Logger -.-> WMS
-    Logger -.-> RMS
-    
-    Processor -.-> CPS
-    CronProcessor -.-> CRPS
-    Aggregator -.-> AS
-    
-    %% Styling
-    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:3px,color:#000000
-    classDef mode fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000000
-    
-    class KMS,MMS,WMS,RMS,CPS,CRPS,IES,KLIS,MLIS,WLIS,EIS,PSIS,AS service
-    class Logger,Processor,CronProcessor,Aggregator mode
-```
-
-**Service Interaction Summary:**
-
-1. **Logger Mode**: All monitoring services capture user activity in real-time, with ResourceMonitorService automatically launching processors when CPU usage is low
-2. **Processor Mode**: ContinuousProcessingService processes logs in resource-aware batches, generating embeddings through IntfloatEmbeddingService
-3. **CronProcessor Mode**: CronProcessingService ensures complete processing of all pending logs during scheduled times
-4. **Aggregator Mode**: AggregationService archives completed data from all IO services into upload-ready structures
-
-**Key Interactions:**
-- **Monitoring → Data**: Direct flow from monitor services to their respective IO services
-- **Processing → Multiple Services**: Processing services coordinate with multiple IO services for reading logs, generating embeddings, and tracking progress
-- **Resource Management**: ResourceMonitorService acts as the bridge between monitoring and processing by launching processors when resources permit
-- **State Persistence**: ProcessingStateIOService ensures processing can resume after interruptions
 
 ## 3. Data Services Architecture
 
