@@ -877,6 +877,47 @@ Each IO service in the middle layer specializes in managing specific types of fi
 - **Date-based Organization**: One file per day for easy management
 - **Automatic Decryption**: Reads and decrypts logs for processing services
 
+**Service Dependencies:**
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        KMS["<b>KeyboardMonitorService</b><br/>⌨️ Captures keyboard events"]
+        RMS["<b>ResourceMonitorService</b><br/>📊 Monitors system resources"]
+        CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-aware processing"]
+        CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled processing"]
+        AS["<b>AggregationService</b><br/>📦 Archives completed data"]
+    end
+    
+    subgraph "Layer 2: IO Service"
+        KLIS["<b>KeyboardLogIOService</b><br/>📝 keyboard_logs-yyyyMMdd.txt"]
+    end
+    
+    subgraph "Layer 1: Foundation"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-level file operations"]
+    end
+    
+    %% Dependencies to KeyboardLogIOService
+    KMS -->|SaveLogAsyncAndEncrypt| KLIS
+    RMS -->|GetDatesToProcess<br/>GetFilePath| KLIS
+    CPS -->|GetDatesToProcess<br/>GetPreviousLogsAsyncDecrypted| KLIS
+    CRPS -->|GetDatesToProcess<br/>GetPreviousLogsAsyncDecrypted| KLIS
+    AS -->|GetDatesToProcess<br/>GetPreviousLogsAsyncDecrypted<br/>GetFilePath| KLIS
+    
+    %% Foundation dependency
+    KLIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class KMS,RMS,CPS,CRPS,AS layer3
+    class KLIS layer2
+    class FS layer1
+```
+
 #### 3.5.2 MouseLogIOService
 
 **File Management Responsibility:** Daily mouse interaction logs without encryption
@@ -899,6 +940,41 @@ Each IO service in the middle layer specializes in managing specific types of fi
 - **Immediate Logging**: Each mouse event is logged immediately without buffering
 - **Append-Only**: Efficiently appends events to daily files
 
+**Service Dependencies:**
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        MMS["<b>MouseMonitorService</b><br/>🖱️ Captures mouse events"]
+        AS["<b>AggregationService</b><br/>📦 Archives completed data"]
+    end
+    
+    subgraph "Layer 2: IO Service"
+        MLIS["<b>MouseLogIOService</b><br/>🖱️ mouse_logs-yyyyMMdd.txt"]
+    end
+    
+    subgraph "Layer 1: Foundation"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-level file operations"]
+    end
+    
+    %% Dependencies to MouseLogIOService
+    MMS -->|SaveLogAsync| MLIS
+    AS -->|GetFilePath| MLIS
+    
+    %% Foundation dependency
+    MLIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class MMS,AS layer3
+    class MLIS layer2
+    class FS layer1
+```
+
 #### 3.5.3 WindowLogIOService
 
 **File Management Responsibility:** Daily active window change logs with encryption
@@ -919,6 +995,41 @@ Each IO service in the middle layer specializes in managing specific types of fi
 - **Deduplication Logic**: Only logs when window focus actually changes
 - **Handle Tracking**: Records window handles for precise identification
 - **Process Information**: Captures both window title and executable name
+
+**Service Dependencies:**
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        WMS["<b>WindowMonitorrService</b><br/>🪟 Captures window changes"]
+        AS["<b>AggregationService</b><br/>📦 Archives completed data"]
+    end
+    
+    subgraph "Layer 2: IO Service"
+        WLIS["<b>WindowLogIOService</b><br/>🗂️ window_monitor_logs-yyyyMMdd.txt"]
+    end
+    
+    subgraph "Layer 1: Foundation"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-level file operations"]
+    end
+    
+    %% Dependencies to WindowLogIOService
+    WMS -->|SaveLogAsync| WLIS
+    AS -->|GetFilePath| WLIS
+    
+    %% Foundation dependency
+    WLIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class WMS,AS layer3
+    class WLIS layer2
+    class FS layer1
+```
 
 #### 3.5.4 EmbeddingIOService
 
@@ -958,6 +1069,43 @@ embeddings/
 - **UUID Identification**: Unique filenames prevent conflicts
 - **Automatic Directory Creation**: Creates date folders as needed
 
+**Service Dependencies:**
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-aware processing"]
+        CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled processing"]
+        AS["<b>AggregationService</b><br/>📦 Archives completed data"]
+    end
+    
+    subgraph "Layer 2: IO Service"
+        EIS["<b>EmbeddingIOService</b><br/>🧠 embeddings/yyyyMMdd/{uuid}.json"]
+    end
+    
+    subgraph "Layer 1: Foundation"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-level file operations"]
+    end
+    
+    %% Dependencies to EmbeddingIOService
+    CPS -->|SaveEmbeddingsAsync| EIS
+    CRPS -->|SaveEmbeddingsAsync| EIS
+    AS -->|GetFolderPath| EIS
+    
+    %% Foundation dependency
+    EIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class CPS,CRPS,AS layer3
+    class EIS layer2
+    class FS layer1
+```
+
 #### 3.5.5 ProcessingStateIOService
 
 **File Management Responsibility:** Centralized processing progress tracking
@@ -976,11 +1124,48 @@ embeddings/
 ```
 
 **Key Features:**
-- **Centralized State**: Single JSON file tracks progress for all dates
-- **Line Count Tracking**: Maps date keys to number of processed log lines
+- **Centralized State**: Single JSON file tracks embedding progress for all dates
+- **Line Count Tracking**: Maps date keys to number of processed log lines in `keyboard_logs-<date>.txt`
 - **Atomic Operations**: Uses temporary files to prevent corruption during updates
 - **Resume Capability**: Enables processing to continue after interruptions
 - **State Cleanup**: Can remove completed dates from tracking
+
+**Service Dependencies:**
+
+```mermaid
+%%{init: {'theme':'neutral'}}%%
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-aware processing"]
+        CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled processing"]
+        AS["<b>AggregationService</b><br/>📦 Archives completed data"]
+    end
+    
+    subgraph "Layer 2: IO Service"
+        PSIS["<b>ProcessingStateIOService</b><br/>📊 processing_state.json"]
+    end
+    
+    subgraph "Layer 1: Foundation"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-level file operations"]
+    end
+    
+    %% Dependencies to ProcessingStateIOService
+    CPS -->|GetProcessedCount<br/>UpdateProcessedCount| PSIS
+    CRPS -->|GetProcessedCount<br/>UpdateProcessedCount| PSIS
+    AS -->|GetProcessedCount<br/>RemoveDate| PSIS
+    
+    %% Foundation dependency
+    PSIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class CPS,CRPS,AS layer3
+    class PSIS layer2
+    class FS layer1
+```
 
 ## 4. Development Setup and Usage
 
