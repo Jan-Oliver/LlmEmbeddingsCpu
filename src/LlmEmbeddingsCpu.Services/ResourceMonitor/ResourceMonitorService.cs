@@ -1,4 +1,4 @@
-using LlmEmbeddingsCpu.Data.FileStorage;
+using LlmEmbeddingsCpu.Data.FileSystemIO;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System;
@@ -7,7 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Timers;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
 
 namespace LlmEmbeddingsCpu.Services.ResourceMonitor
 {
@@ -17,8 +17,8 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
     public class ResourceMonitorService : IDisposable
     {
         private readonly ILogger<ResourceMonitorService> _logger;
-        private readonly FileStorageService _fileStorageService;
-        private readonly KeyboardInputStorageService _keyboardInputStorageService;
+        private readonly FileSystemIOService _fileSystemIOService;
+        private readonly KeyboardLogIOService _keyboardLogIOService;
 
         private readonly System.Timers.Timer _monitoringTimer;
         private readonly List<float> _cpuUsageHistory = new();
@@ -32,12 +32,12 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
 
         public ResourceMonitorService(
             ILogger<ResourceMonitorService> logger, 
-            FileStorageService fileStorageService,
-            KeyboardInputStorageService keyboardInputStorageService
+            FileSystemIOService fileSystemIOService,
+            KeyboardLogIOService keyboardLogIOService
         ) {
             _logger = logger;
-            _fileStorageService = fileStorageService;
-            _keyboardInputStorageService = keyboardInputStorageService;
+            _fileSystemIOService = fileSystemIOService;
+            _keyboardLogIOService = keyboardLogIOService;
 
             _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
             
@@ -157,7 +157,7 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         {
             try
             {
-                var stateFilePath = _fileStorageService.GetFullPath(ProcessingStatePath);
+                var stateFilePath = _fileSystemIOService.GetFullPath(ProcessingStatePath);
                 
                 if (!File.Exists(stateFilePath))
                 {
@@ -179,10 +179,10 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
             var logFiles = new List<string>();
             
             // Get keyboard log files
-            var datesToProcess = _keyboardInputStorageService.GetDatesToProcess();
+            var datesToProcess = _keyboardLogIOService.GetDatesToProcess();
             foreach (var date in datesToProcess)
             {
-                logFiles.Add(_keyboardInputStorageService.GetFilePath(date));
+                logFiles.Add(_keyboardLogIOService.GetFilePath(date));
             }
             
             return logFiles;
@@ -192,10 +192,10 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         {
             try
             {
-                if (!_fileStorageService.CheckIfFileExists(filePath))
+                if (!_fileSystemIOService.CheckIfFileExists(filePath))
                     return 0;
 
-                var content = _fileStorageService.ReadFileIfExists(filePath);
+                var content = _fileSystemIOService.ReadFileIfExists(filePath);
                 return content.Split('\n').Length;
             }
             catch (Exception ex)

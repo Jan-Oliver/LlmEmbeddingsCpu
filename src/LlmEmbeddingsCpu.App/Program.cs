@@ -11,7 +11,7 @@ using LlmEmbeddingsCpu.Services.EmbeddingService;
 using LlmEmbeddingsCpu.Services.WindowMonitor;
 using LlmEmbeddingsCpu.Services.ResourceMonitor;
 using LlmEmbeddingsCpu.Services.ContinuousProcessing;
-using LlmEmbeddingsCpu.Services.NightlyCronProcessing;
+using LlmEmbeddingsCpu.Services.CronProcessing;
 using LlmEmbeddingsCpu.Services.Aggregation;
 using LlmEmbeddingsCpu.Common.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,7 +52,7 @@ namespace LlmEmbeddingsCpu.App
                 string logDirectory = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "LlmEmbeddingsCpu", "logs");
-                LogLevel minLogLevel = LogLevel.Warning;
+                LogLevel minLogLevel = LogLevel.Information;
             #endif
 
             Directory.CreateDirectory(logDirectory);
@@ -141,14 +141,14 @@ namespace LlmEmbeddingsCpu.App
         }
 
         /// <summary>
-        /// Runs the cron processor mode for nightly processing.
+        /// Runs the cron processor mode for scheduled processing.
         /// </summary>
         private static async Task RunCronProcessorMode(ServiceProvider serviceProvider)
         {
-            var nightlyProcessor = serviceProvider.GetRequiredService<NightlyCronProcessingService>();
-            Log.Information("Starting nightly cron processor mode");
-            await nightlyProcessor.StartProcessingAsync();
-            Log.Information("Nightly cron processor mode completed");
+            var cronProcessor = serviceProvider.GetRequiredService<CronProcessingService>();
+            Log.Information("Starting cron processor mode");
+            await cronProcessor.StartProcessingAsync();
+            Log.Information("Cron processor mode completed");
         }
 
         /// <summary>
@@ -270,8 +270,8 @@ namespace LlmEmbeddingsCpu.App
             // Register embedding service
             services.AddSingleton<IEmbeddingService, IntfloatEmbeddingService>();
             
-            // Register nightly cron processing service
-            services.AddSingleton<NightlyCronProcessingService>();
+            // Register cron processing service
+            services.AddSingleton<CronProcessingService>();
         }
 
         /// <summary>

@@ -186,10 +186,15 @@ namespace LlmEmbeddingsCpu.Services.Aggregation
                 
                 if (keyboardLogExists)
                 {
+#if DEBUG
                     var keyboardLogCombinedFilePath = Path.Combine(logsPath, "keyboard_logs.txt");
                     _logger.LogInformation("Moving keyboard log to logs folder: {KeyboardLogCombinedFilePath}", 
                         keyboardLogCombinedFilePath);
                     _fileSystemIOService.MoveFile(keyboardLogFilePath, keyboardLogCombinedFilePath);
+#else
+                    _logger.LogInformation("Deleting keyboard log file: {KeyboardLogFilePath}", keyboardLogFilePath);
+                    _fileSystemIOService.DeleteFile(keyboardLogFilePath);
+#endif
 
                     // Remove from processing state using date key
                     var dateKey = ProcessingStateIOService.GetDateKey(date);

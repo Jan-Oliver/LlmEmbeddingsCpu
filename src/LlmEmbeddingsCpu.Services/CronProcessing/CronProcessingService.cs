@@ -9,20 +9,20 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
+namespace LlmEmbeddingsCpu.Services.CronProcessing
 {
     /// <summary>
     /// Provides brute-force processing of all log files without resource checks.
     /// </summary>
-    public class NightlyCronProcessingService(
-        ILogger<NightlyCronProcessingService> logger,
+    public class CronProcessingService(
+        ILogger<CronProcessingService> logger,
         EmbeddingIOService embeddingIOService,
         KeyboardLogIOService keyboardLogIOService,
         IEmbeddingService embeddingService,
         ProcessingStateIOService processingStateIOService
     )
     {
-        private readonly ILogger<NightlyCronProcessingService> _logger = logger;
+        private readonly ILogger<CronProcessingService> _logger = logger;
         private readonly EmbeddingIOService _embeddingIOService = embeddingIOService;
         private readonly KeyboardLogIOService _keyboardLogIOService = keyboardLogIOService;
         private readonly IEmbeddingService _embeddingService = embeddingService;
@@ -31,11 +31,11 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
         private const int BatchSize = 10;
 
         /// <summary>
-        /// Starts the nightly cron processing to complete all unprocessed work.
+        /// Starts the cron processing to complete all unprocessed work.
         /// </summary>
         public async Task StartProcessingAsync()
         {
-            _logger.LogInformation("Starting nightly cron processing service");
+            _logger.LogInformation("Starting cron processing service");
 
             try
             {
@@ -49,11 +49,11 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
                     await ProcessDateCompletely(date);
                 }
 
-                _logger.LogInformation("Nightly cron processing completed successfully");
+                _logger.LogInformation("Cron processing completed successfully");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during nightly cron processing");
+                _logger.LogError(ex, "Error during cron processing");
             }
         }
 
@@ -109,36 +109,30 @@ namespace LlmEmbeddingsCpu.Services.NightlyCronProcessing
 
         private async Task ProcessKeyboardLogBatch(List<Core.Models.KeyboardInputLog> keyboardLogs, DateTime date)
         {
-            foreach (var log in keyboardLogs)
+            var nonEmptyLogs = keyboardLogs.Where(log => !string.IsNullOrWhiteSpace(log.Content)).ToList();
+
+            if (nonEmptyLogs.Count == 0)
             {
-                try
+                _logger.LogWarning("Skipping batch due to empty logs");
+                return;
+            }
+
+            try
                 {
-                    // Skip if content is empty or contains only special characters
-                    if (string.IsNullOrWhiteSpace(log.Content) || log.Content.All(c => !char.IsLetterOrDigit(c)))
-                        continue;
-
-                    // Skip if content is too short
-                    if (log.Content.Length < 3)
-                        continue;
-
-                    // Skip special key combinations (only process text)
-                    if (log.Type != Core.Enums.KeyboardInputType.Text)
-                        continue;
-
-                    // Generate embedding
-                    var embedding = await _embeddingService.GenerateEmbeddingAsync(log);
-                    
-                    // Store embedding using the date parameter
-                    await _embeddingIOService.SaveEmbeddingAsync(embedding, date);
-                    
-                    _logger.LogDebug("Generated and stored embedding for content of length {Length}", 
-                        log.Content.Length);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing keyboard log: {LogId}, Content: {Content}", 
-                        log.Timestamp, log.Content?.Substring(0, Math.Min(50, log.Content?.Length ?? 0)));
-                }
+                // Generate embedding
+                var embeddings = await _embeddingService.GenerateEmbeddingsAsync(nonEmptyLogs);
+                
+                // Store embedding using the date parameter
+                await _embeddingIOService.SaveEmbeddingsAsync(embeddings, date);
+                
+                _logger.LogDebug("Generated and stored embedding for content of length {Length}", 
+                    nonEmptyLogs.Sum(log => log.Content.Length));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing keyboard log: {LogId}, Content: {Content}", 
+                    nonEmptyLogs.First().Timestamp, 
+                    nonEmptyLogs.First().Content is { Length: > 50 } content ? content[..50] : nonEmptyLogs.First().Content);
             }
         }
 
