@@ -124,7 +124,7 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
         {
             try
             {
-                var availableDates = _keyboardLogIOService.GetDatesToProcess().ToList();
+                var availableDates = _keyboardLogIOService.GetDatesToProcess(includeToday: true).ToList();
 
                 // Find dates that have unprocessed logs
                 var unprocessedDates = new List<DateTime>();
