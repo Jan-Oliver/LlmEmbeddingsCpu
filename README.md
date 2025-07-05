@@ -31,17 +31,18 @@ LlmEmbeddingsCpu/
 
 ### 1.2 Solution Architecture Diagram
 
-The following diagram illustrates the dependency relationships between projects and the flow of data through the system:
+The following diagram illustrates the dependency relationships between projects and external integrations:
 
 ```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
 graph TB
     %% Project Dependencies
     subgraph "LlmEmbeddingsCpu Solution"
-        App[LlmEmbeddingsCpu.App<br/>📱 Entry Point & DI Container]
-        Services[LlmEmbeddingsCpu.Services<br/>⚙️ Business Logic]
-        Data[LlmEmbeddingsCpu.Data<br/>💾 Data Access Layer]
-        Core[LlmEmbeddingsCpu.Core<br/>🔧 Domain Models & Interfaces]
-        Common[LlmEmbeddingsCpu.Common<br/>📚 Shared Utilities]
+        App["<b>LlmEmbeddingsCpu.App</b><br/>📱 Entry Point & DI Container"]
+        Services["<b>LlmEmbeddingsCpu.Services</b><br/>⚙️ Business Logic"]
+        Data["<b>LlmEmbeddingsCpu.Data</b><br/>💾 Data Access Layer"]
+        Core["<b>LlmEmbeddingsCpu.Core</b><br/>🔧 Domain Models & Interfaces"]
+        Common["<b>LlmEmbeddingsCpu.Common</b><br/>📚 Shared Utilities"]
     end
     
     %% Dependencies
@@ -59,93 +60,21 @@ graph TB
     
     %% External Dependencies
     subgraph "External Dependencies"
-        ONNX[ONNX Runtime<br/>🤖 ML Model Execution]
-        WinAPI[Windows API<br/>🪟 System Hooks]
-        FileSystem[File System<br/>📁 Local Storage]
+        ONNX["<b>ONNX Runtime</b><br/>🤖 ML Model Execution"]
+        WinAPI["<b>Windows API</b><br/>🪟 System Hooks"]
+        FileSystem["<b>File System</b><br/>📁 Local Storage"]
     end
     
     Services --> ONNX
     Services --> WinAPI
     Data --> FileSystem
     
-    %% Service Flow
-    subgraph "Service Architecture"
-        direction TB
-        subgraph "Monitoring Services"
-            KMS[KeyboardMonitorService]
-            MMS[MouseMonitorService]
-            WMS[WindowMonitorrService]
-            RMS[ResourceMonitorService]
-        end
-        
-        subgraph "Processing Services"
-            CPS[ContinuousProcessingService]
-            CRPS[CronProcessingService]
-            IES[IntfloatEmbeddingService]
-        end
-        
-        subgraph "Data Services"
-            KLIS[KeyboardLogIOService]
-            MLIS[MouseLogIOService]
-            WLIS[WindowLogIOService]
-            EIS[EmbeddingIOService]
-            PSIS[ProcessingStateIOService]
-        end
-        
-        subgraph "Aggregation"
-            AS[AggregationService]
-        end
-    end
-    
-    %% Data Flow
-    KMS --> KLIS
-    MMS --> MLIS
-    WMS --> WLIS
-    RMS --> CPS
-    
-    CPS --> KLIS
-    CPS --> IES
-    CPS --> EIS
-    CPS --> PSIS
-    
-    CRPS --> KLIS
-    CRPS --> IES
-    CRPS --> EIS
-    CRPS --> PSIS
-    
-    AS --> KLIS
-    AS --> MLIS
-    AS --> WLIS
-    AS --> EIS
-    AS --> PSIS
-    
-    %% Launch Modes
-    subgraph "Launch Modes"
-        Logger[--logger<br/>🔍 Continuous Monitoring]
-        Processor[--processor<br/>⚡ Resource-Aware Processing]
-        CronProcessor[--cron-processor<br/>⏰ Scheduled Processing]
-        Aggregator[--aggregator<br/>📦 Data Archiving]
-    end
-    
-    Logger -.-> KMS
-    Logger -.-> MMS
-    Logger -.-> WMS
-    Logger -.-> RMS
-    
-    Processor -.-> CPS
-    CronProcessor -.-> CRPS
-    Aggregator -.-> AS
-    
     %% Styling
-    classDef project fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef external fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef mode fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef project fill:#e1f5fe,stroke:#01579b,stroke-width:3px,color:#000000
+    classDef external fill:#f3e5f5,stroke:#4a148c,stroke-width:3px,color:#000000
     
     class App,Services,Data,Core,Common project
     class ONNX,WinAPI,FileSystem external
-    class KMS,MMS,WMS,RMS,CPS,CRPS,IES,KLIS,MLIS,WLIS,EIS,PSIS,AS service
-    class Logger,Processor,CronProcessor,Aggregator mode
 ```
 
 **Key Architecture Features:**
@@ -381,13 +310,99 @@ upload-queue/
 
 ### 2.6 Service Interaction Flow
 
-The complete system operates as follows:
+The complete system operates through a sophisticated service architecture where each component has specific responsibilities and interactions:
 
-1. **Logger** continuously captures user activity
-2. **ResourceMonitorService** monitors CPU usage and launches processors
-3. **Processor** opportunistically processes logs when resources permit
-4. **CronProcessor** ensures complete processing during scheduled times
-5. **Aggregator** archives completed data for upload
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
+graph TB
+    %% Service Flow
+    subgraph "Service Architecture"
+        direction TB
+        subgraph "Monitoring Services"
+            KMS["<b>KeyboardMonitorService</b><br/>⌨️ Global Keyboard Hooks"]
+            MMS["<b>MouseMonitorService</b><br/>🖱️ Global Mouse Hooks"]
+            WMS["<b>WindowMonitorrService</b><br/>🪟 Window Focus Tracking"]
+            RMS["<b>ResourceMonitorService</b><br/>📊 CPU Usage & Process Launching"]
+        end
+        
+        subgraph "Processing Services"
+            CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-Aware Processing"]
+            CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled Processing"]
+            IES["<b>IntfloatEmbeddingService</b><br/>🤖 ONNX Model Execution"]
+        end
+        
+        subgraph "Data Services"
+            KLIS["<b>KeyboardLogIOService</b><br/>📝 Encrypted Keyboard Logs"]
+            MLIS["<b>MouseLogIOService</b><br/>🖱️ Mouse Event Logs"]
+            WLIS["<b>WindowLogIOService</b><br/>🪟 Encrypted Window Logs"]
+            EIS["<b>EmbeddingIOService</b><br/>🧠 Embedding Storage"]
+            PSIS["<b>ProcessingStateIOService</b><br/>📊 Progress Tracking"]
+        end
+        
+        subgraph "Aggregation"
+            AS["<b>AggregationService</b><br/>📦 Data Archiving"]
+        end
+    end
+    
+    %% Data Flow
+    KMS --> KLIS
+    MMS --> MLIS
+    WMS --> WLIS
+    RMS --> CPS
+    
+    CPS --> KLIS
+    CPS --> IES
+    CPS --> EIS
+    CPS --> PSIS
+    
+    CRPS --> KLIS
+    CRPS --> IES
+    CRPS --> EIS
+    CRPS --> PSIS
+    
+    AS --> KLIS
+    AS --> MLIS
+    AS --> WLIS
+    AS --> EIS
+    AS --> PSIS
+    
+    %% Launch Modes
+    subgraph "Launch Modes"
+        Logger["<b>--logger</b><br/>🔍 Continuous Monitoring"]
+        Processor["<b>--processor</b><br/>⚡ Resource-Aware Processing"]
+        CronProcessor["<b>--cron-processor</b><br/>⏰ Scheduled Processing"]
+        Aggregator["<b>--aggregator</b><br/>📦 Data Archiving"]
+    end
+    
+    Logger -.-> KMS
+    Logger -.-> MMS
+    Logger -.-> WMS
+    Logger -.-> RMS
+    
+    Processor -.-> CPS
+    CronProcessor -.-> CRPS
+    Aggregator -.-> AS
+    
+    %% Styling
+    classDef service fill:#e8f5e8,stroke:#1b5e20,stroke-width:3px,color:#000000
+    classDef mode fill:#fff3e0,stroke:#e65100,stroke-width:3px,color:#000000
+    
+    class KMS,MMS,WMS,RMS,CPS,CRPS,IES,KLIS,MLIS,WLIS,EIS,PSIS,AS service
+    class Logger,Processor,CronProcessor,Aggregator mode
+```
+
+**Service Interaction Summary:**
+
+1. **Logger Mode**: All monitoring services capture user activity in real-time, with ResourceMonitorService automatically launching processors when CPU usage is low
+2. **Processor Mode**: ContinuousProcessingService processes logs in resource-aware batches, generating embeddings through IntfloatEmbeddingService
+3. **CronProcessor Mode**: CronProcessingService ensures complete processing of all pending logs during scheduled times
+4. **Aggregator Mode**: AggregationService archives completed data from all IO services into upload-ready structures
+
+**Key Interactions:**
+- **Monitoring → Data**: Direct flow from monitor services to their respective IO services
+- **Processing → Multiple Services**: Processing services coordinate with multiple IO services for reading logs, generating embeddings, and tracking progress
+- **Resource Management**: ResourceMonitorService acts as the bridge between monitoring and processing by launching processors when resources permit
+- **State Persistence**: ProcessingStateIOService ensures processing can resume after interruptions
 
 ## 3. Data Services Architecture
 
