@@ -4,7 +4,7 @@ using LlmEmbeddingsCpu.Data.KeyboardLogIO;
 using LlmEmbeddingsCpu.Data.MouseLogIO;
 using LlmEmbeddingsCpu.Data.ProcessingStateIO;
 using LlmEmbeddingsCpu.Data.WindowLogIO;
-using LlmEmbeddingsCpu.Common.Enums;
+using LlmEmbeddingsCpu.Core.Enums;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;

@@ -42,7 +42,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardLogIO
             string encryptedContent = log.Content.ToRot13();
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.Type.ToString().ToLower()}|{encryptedContent}";
             
-            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
+            _logger.LogDebug("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileSystemIOService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }

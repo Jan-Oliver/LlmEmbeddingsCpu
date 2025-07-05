@@ -13,7 +13,7 @@ using LlmEmbeddingsCpu.Services.ResourceMonitor;
 using LlmEmbeddingsCpu.Services.ContinuousProcessing;
 using LlmEmbeddingsCpu.Services.CronProcessing;
 using LlmEmbeddingsCpu.Services.Aggregation;
-using LlmEmbeddingsCpu.Common.Enums;
+using LlmEmbeddingsCpu.Core.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;

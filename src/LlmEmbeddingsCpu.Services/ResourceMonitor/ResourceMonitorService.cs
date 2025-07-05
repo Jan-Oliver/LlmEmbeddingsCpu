@@ -95,14 +95,14 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
                 _cpuUsageHistory.RemoveAt(0);
             }
 
-            _logger.LogDebug("Current CPU usage: {CpuUsage:F2}%, History count: {HistoryCount}", 
+            _logger.LogInformation("Current CPU usage: {CpuUsage:F2}%, History count: {HistoryCount}", 
                 currentCpuUsage, _cpuUsageHistory.Count);
 
             // Check if we have enough history and all values are below threshold
             if (_cpuUsageHistory.Count >= RequiredLowCpuChecks && 
                 _cpuUsageHistory.All(usage => usage < CpuThreshold))
             {
-                _logger.LogDebug("CPU usage consistently below {Threshold}% for {Checks} checks", 
+                _logger.LogInformation("CPU usage consistently below {Threshold}% for {Checks} checks", 
                     CpuThreshold, RequiredLowCpuChecks);
 
                 // Check for work
@@ -113,12 +113,12 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
                 }
                 else
                 {
-                    _logger.LogDebug("No unprocessed work found");
+                    _logger.LogInformation("No unprocessed work found");
                 }
             }
             else
             {
-                _logger.LogDebug("CPU usage not consistently low enough to trigger processing");
+                _logger.LogInformation("CPU usage not consistently low enough to trigger processing");
             }
         }
 
@@ -138,7 +138,7 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
                     
                     if (linesOnDisk > processedLines)
                     {
-                        _logger.LogDebug("Found work in {LogFile}: {LinesOnDisk} lines on disk, {ProcessedLines} processed", 
+                        _logger.LogInformation("Found work in {LogFile}: {LinesOnDisk} lines on disk, {ProcessedLines} processed", 
                             logFile, linesOnDisk, processedLines);
                         return true;
                     }

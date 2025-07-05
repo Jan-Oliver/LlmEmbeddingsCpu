@@ -37,7 +37,7 @@ namespace LlmEmbeddingsCpu.Data.WindowLogIO
             string fileName = GetFilePath(DateTime.Now);
             string formattedLog = $"[{log.Timestamp:HH:mm:ss}] {log.WindowTitle.ToRot13()}|{log.WindowHandle}|{log.ProcessName.ToRot13()}";
             
-            _logger.LogInformation("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
+            _logger.LogDebug("Logging to {FileName}: {FormattedLog}", fileName, formattedLog);
             
             await _fileSystemIOService.WriteFileAsync(fileName, formattedLog + Environment.NewLine, true);
         }
