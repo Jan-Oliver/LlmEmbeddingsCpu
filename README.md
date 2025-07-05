@@ -779,7 +779,7 @@ graph TB
 
 ### 3.2 FileSystemIOService - The Foundation
 
-All IO services depend on `FileSystemIOService`, which provides:
+All IO services depend on `FileSystemIOService`, which provides centralized path management and low-level file operations. The service internally handles base path allocation, making it extremely easy to change storage locations later.
 
 ```csharp
 public class FileSystemIOService
@@ -794,16 +794,30 @@ public class FileSystemIOService
     - MoveFile(string source, string destination)
     - DeleteFile(string filePath)
     - CheckIfFileExists(string filePath)
-    - GetFullPath(string relativePath)
+    - GetFullPath(string relativePath)  // Combines basePath with filename
 }
 ```
 
-**Base Path Resolution:**
-- **ARM-Development**: `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-arm64/logs/`
-- **x64-Development**: `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-x64/logs/`
-- **Production**: `%LOCALAPPDATA%\LlmEmbeddingsCpu\` (user-specific, no admin rights required)
+**Internal Path Management:**
+The service automatically handles base path resolution through intelligent logic:
+- **No base path provided**: Defaults to `AppDomain.CurrentDomain.BaseDirectory + "logs"`
+- **Relative path provided**: Combines with current application directory
+- **Absolute path provided**: Uses the path directly
 
-### 3.2 Data Encryption Strategy
+This means all IO services simply provide filenames, and FileSystemIOService handles the complete path construction.
+
+**Environment-Specific Base Paths:**
+- **Development**: `{ApplicationDirectory}/logs/` (alongside the executable)
+- **Production**: `%LOCALAPPDATA%\LlmEmbeddingsCpu\logs/` (user-specific, no admin rights required)
+
+**Path Resolution Example:**
+```
+IO Service Request: "keyboard_logs-20250703.txt"
+FileSystemIOService: basePath + filename
+Final Path: "/app/logs/keyboard_logs-20250703.txt"
+```
+
+### 3.3 Data Encryption Strategy
 
 The system uses ROT13 encryption for sensitive data to provide basic obfuscation:
 
@@ -824,80 +838,6 @@ The system uses ROT13 encryption for sensitive data to provide basic obfuscation
    - Example: `[14:23:45] 1920|1080|Left|1|0`
    - Reason: Coordinates and click data have no meaningful content
 
-### 3.3 Individual IO Services
-
-#### KeyboardLogIOService
-Manages keyboard input persistence with intelligent date handling:
-
-```csharp
-Key Methods:
-- SaveLogAsync(KeyboardInputLog log)
-- GetPreviousLogsAsyncDecrypted(DateTime date)
-- GetDatesToProcess() // Returns dates with unprocessed logs
-- GetFilePath(DateTime date) // Internal path management
-```
-
-**File Structure:**
-- One file per day: `keyboard_logs-20240315.txt`
-- Each line represents one keyboard event
-- Automatic ROT13 encryption on save
-- Automatic decryption on read
-
-#### WindowLogIOService
-Tracks window focus changes throughout the day:
-
-```csharp
-Key Methods:
-- SaveLogAsync(ActiveWindowLog log)
-- GetFilePath(DateTime date)
-```
-
-**Deduplication Logic:**
-- Only logs when window focus actually changes
-- Prevents duplicate entries for the same window
-
-#### ProcessingStateIOService
-Central state management for processing progress:
-
-```csharp
-Structure:
-{
-  "20240315": 1500,  // Date: ProcessedLineCount
-  "20240316": 750,
-  ...
-}
-
-Key Methods:
-- GetProcessedCount(string dateKey)
-- UpdateProcessedCount(string dateKey, int count)
-- RemoveDate(string dateKey)
-- SaveState() // Atomic save with temp file
-```
-
-**Features:**
-- Atomic writes prevent corruption
-- Enables resume after crashes
-- Tracks progress per date
-- Thread-safe operations
-
-#### EmbeddingIOService
-Manages the structured storage of generated embeddings:
-
-```csharp
-Directory Structure:
-embeddings/
-└── YYYYMMDD/
-    ├── 00000000-0000-0000-0000-000000000001.json
-    ├── 00000000-0000-0000-0000-000000000002.json
-    └── ...
-
-Key Methods:
-- SaveEmbeddingAsync(Embedding embedding)
-- SaveEmbeddingsBulkAsync(IEnumerable<Embedding> embeddings)
-- GetEmbeddingsAsync(DateTime date)
-- GetFolderPath(DateTime date)
-```
-
 ### 3.4 Path Management Philosophy
 
 All path management is encapsulated within IO services:
@@ -911,6 +851,136 @@ This abstraction allows for:
 - Consistent file organization
 - Simplified testing with mock implementations
 - Clear separation of concerns
+
+### 3.5 Individual IO Services
+
+Each IO service in the middle layer specializes in managing specific types of files while leveraging the FileSystemIOService foundation. Below are the detailed responsibilities of each service:
+
+#### 3.5.1 KeyboardLogIOService
+
+**File Management Responsibility:** Daily keyboard input logs with encryption
+
+**Files Managed:**
+- **Pattern**: `keyboard_logs-{yyyyMMdd}.txt`
+- **Example**: `keyboard_logs-20250703.txt`
+- **Location**: Root of base path
+
+**File Content Format:**
+```
+[14:23:45] Text|Uryyb Jbeyq
+[14:23:46] Special|Pgevn+P
+```
+
+**Key Features:**
+- **ROT13 Encryption**: All keyboard content is encrypted before storage for privacy
+- **Intelligent Buffering**: Groups keystrokes efficiently before writing
+- **Date-based Organization**: One file per day for easy management
+- **Automatic Decryption**: Reads and decrypts logs for processing services
+
+#### 3.5.2 MouseLogIOService
+
+**File Management Responsibility:** Daily mouse interaction logs without encryption
+
+**Files Managed:**
+- **Pattern**: `mouse_logs-{yyyyMMdd}.txt`
+- **Example**: `mouse_logs-20250703.txt`
+- **Location**: Root of base path
+
+**File Content Format:**
+```
+[14:23:45] 1920|1080|Left|1|0
+[14:23:46] 1925|1085|Right|1|0
+[14:23:47] 1930|1090|None|0|5
+```
+
+**Key Features:**
+- **No Encryption**: Mouse coordinates and clicks don't make sense if you don't know the schema
+- **Precise Tracking**: Records X/Y coordinates, button types, click counts, and scroll deltas
+- **Immediate Logging**: Each mouse event is logged immediately without buffering
+- **Append-Only**: Efficiently appends events to daily files
+
+#### 3.5.3 WindowLogIOService
+
+**File Management Responsibility:** Daily active window change logs with encryption
+
+**Files Managed:**
+- **Pattern**: `window_monitor_logs-{yyyyMMdd}.txt`
+- **Example**: `window_monitor_logs-20250703.txt`
+- **Location**: Root of base path
+
+**File Content Format:**
+```
+[14:23:45] Tbbtyr Puebzr|0x1234|puebzr.rkr
+[14:23:46] Abgrpnq|0x5678|abgrpnq.rkr
+```
+
+**Key Features:**
+- **ROT13 Encryption**: Window titles and process names are encrypted for privacy
+- **Deduplication Logic**: Only logs when window focus actually changes
+- **Handle Tracking**: Records window handles for precise identification
+- **Process Information**: Captures both window title and executable name
+
+#### 3.5.4 EmbeddingIOService
+
+**File Management Responsibility:** JSON-based embedding storage with date organization
+
+**Directory Structure:**
+```
+embeddings/
+├── 20250703/
+│   ├── abc-def-123.json
+│   ├── xyz-456-789.json
+│   └── ...
+├── 20250704/
+│   └── ...
+```
+
+**Files Managed:**
+- **Directory Pattern**: `embeddings/{yyyyMMdd}/`
+- **File Pattern**: `{embedding.Id}.json` (UUID-based filenames)
+- **Location**: `embeddings/` subdirectory under base path
+
+**File Content Format (JSON):**
+```json
+{
+  "Id": "abc-def-123",
+  "Vector": [0.1, 0.2, 0.3, ...],
+  "ModelName": "multilingual-e5-small",
+  "CreatedAt": "2025-07-03T14:23:45Z",
+  "Type": "Text"
+}
+```
+
+**Key Features:**
+- **Date-based Organization**: Separate folders for each processing date
+- **Individual Files**: One JSON file per embedding for efficient access
+- **Batch Processing**: Supports saving multiple embeddings in one operation
+- **UUID Identification**: Unique filenames prevent conflicts
+- **Automatic Directory Creation**: Creates date folders as needed
+
+#### 3.5.5 ProcessingStateIOService
+
+**File Management Responsibility:** Centralized processing progress tracking
+
+**Files Managed:**
+- **Single File**: `processing_state.json`
+- **Location**: Root of base path
+
+**File Content Format (JSON):**
+```json
+{
+  "20250703": 1500,
+  "20250704": 750,
+  "20250705": 0
+}
+```
+
+**Key Features:**
+- **Centralized State**: Single JSON file tracks progress for all dates
+- **Line Count Tracking**: Maps date keys to number of processed log lines
+- **Atomic Operations**: Uses temporary files to prevent corruption during updates
+- **Resume Capability**: Enables processing to continue after interruptions
+- **State Cleanup**: Can remove completed dates from tracking
 
 ## 4. Development Setup and Usage
 
