@@ -1173,26 +1173,36 @@ This section covers everything needed to run the application in development mode
 
 ### 4.1 Development Mode Overview
 
-Development mode provides several advantages:
-- Local file storage in the current directory
-- Enhanced logging output
-- Keyboard log files are preserved (not deleted)
-- No administrative privileges required
-- Easy debugging with Visual Studio or VS Code
+Development mode is designed to make testing and debugging the application as straightforward as possible. When you build the application in DEBUG configuration (the default when using Visual Studio or the `dotnet` command without specifying a configuration), several developer-friendly features are automatically enabled. Unlike production mode where the application runs silently in the background, development mode provides a visible console window that displays real-time logging information, making it easy to see exactly what the application is doing. All data files are stored in a `logs/` folder right next to your executable, eliminating the need to hunt through hidden AppData folders. Additionally, keyboard logs are preserved rather than deleted after processing, allowing you to inspect the captured data and verify that the system is working correctly. This mode requires no special Windows privileges to run, and the enhanced Debug-level logging provides detailed insights into the application's behavior, making it ideal for understanding how the various services interact.
 
 ### 4.2 Prerequisites
 
-1. **.NET 9.0 SDK** or later
-2. **Windows 10/11** (required for Windows hooks)
-3. **ONNX Model Files** (see model setup below)
-4. **Visual Studio 2022** or **VS Code** (optional but recommended)
+The application has several specific requirements due to its integration with Windows APIs and machine learning capabilities. Each prerequisite serves a critical purpose in the system's functionality:
+
+**1. .NET 9.0 SDK or later** is essential because the entire solution targets `net9.0-windows`, leveraging the latest .NET performance improvements and Windows-specific APIs. The application specifically requires the Windows Desktop Runtime (`Microsoft.WindowsDesktop.App.WindowsForms`) to access Windows Forms components needed for global keyboard and mouse hooks. Additionally, the project uses advanced C# features like nullable reference types and implicit usings that are optimized in .NET 9.0.
+
+**2. ONNX Model Files** are required for the text embedding generation that forms the core of the application's purpose. The system uses the `Microsoft.ML.OnnxRuntime` to execute a pre-trained multilingual E5-small model, which converts text input into high-dimensional vectors. Without these model files, the processing services cannot generate embeddings from captured keyboard input.
 
 ### 4.3 Model Setup
 
-The embedding service requires the ONNX model file which is too large for version control:
+The application uses the "multilingual-e5-small" model for generating text embeddings from keyboard input. The model files work together as a complete machine learning pipeline: the tokenizer converts text into numerical tokens, the ONNX model processes these tokens to generate embedding vectors, and the configuration files define the model's architecture and behavior.
+
+**Why these specific files are needed:**
+
+The `IntfloatEmbeddingService.cs:45-47` shows how the service locates and validates each required file:
+
+**Configuration and Tokenization Files** (included in repository):
+- **`config.json`**: Defines the BERT model architecture (384 hidden size, 12 attention heads, 512 max sequence length)
+- **`tokenizer.json`**: Contains the vocabulary and tokenization rules for converting text to tokens
+- **`special_tokens_map.json`** & **`tokenizer_config.json`**: Define special token handling and tokenizer behavior
+
+**Model File** (must be downloaded separately):
+- **`model.onnx`**: The actual neural network weights (≈90MB) - too large for git repositories
+
+**Setup Steps:**
 
 1. Navigate to: `src/LlmEmbeddingsCpu.App/deps/intfloat/multilingual-e5-small/`
-2. Ensure these files exist:
+2. Verify these files exist:
    - `config.json` ✓ (in repository)
    - `special_tokens_map.json` ✓ (in repository)
    - `tokenizer.json` ✓ (in repository)
@@ -1201,18 +1211,21 @@ The embedding service requires the ONNX model file which is too large for versio
 
 3. Download `model.onnx` from: https://olli-master-thesis.s3.eu-west-1.amazonaws.com/multilingual-e5-small-onnx.zip
 
+
 ### 4.4 Running in Development Mode
+
+The application operates in four distinct modes, each designed for a specific function in the data collection and processing pipeline. As shown in `Program.cs:99-106`, the application parses command-line arguments to determine which mode to run, defaulting to Logger mode if no specific mode is specified. In development mode, each process creates a visible console window that displays real-time Debug-level logging, making it easy to monitor what each service is doing.
 
 #### Basic Development Commands:
 
 ```bash
-# Run Logger mode (monitors user activity)
+# Run Logger mode (monitors user activity) - DEFAULT
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --logger
 
-# Run Processor mode (processes logs)
+# Run Processor mode (processes logs with resource awareness)
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --processor
 
-# Run CronProcessor mode (force processes all)
+# Run CronProcessor mode (processes all logs without resource limits)
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --cron-processor
 
 # Run Aggregator mode (archives completed data)
@@ -1221,78 +1234,100 @@ dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --aggr
 
 #### Architecture-Specific Commands:
 
+The application supports both x64 and ARM64 Windows architectures with different ONNX runtime dependencies. Use these commands when you need to test specific architecture builds:
+
 ```bash
-# Force x64 architecture
+# Force x64 architecture (most common)
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-x64 --logger
 
-# Force ARM64 architecture
+# Force ARM64 architecture (Surface Pro X, newer ARM-based PCs)
 dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64 --logger
 ```
 
 ### 4.5 Development File Locations
 
-In development mode, all files are stored under the build output directory for your target architecture and configuration. For example:
+One of the key advantages of development mode is that all data files are stored in an easily accessible location right next to your executable. As shown in `FileSystemIOService.cs:25-26`, when no specific base path is provided (the default behavior), the service automatically creates a `logs/` directory within `AppDomain.CurrentDomain.BaseDirectory`, which corresponds to your build output folder.
+
+**Why this design choice matters:** In production, the application stores files in `%LOCALAPPDATA%\LlmEmbeddingsCpu\logs\` to avoid requiring administrator privileges and to follow Windows conventions. However, during development, you want quick access to inspect generated files, debug data formats, and verify that processing is working correctly. Having everything in your build directory makes this much easier.
+
+**Development File Paths by Architecture:**
 
 - **ARM64 Debug:**  
   `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-arm64/logs/`
 - **x64 Debug:**  
   `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-x64/logs/`
-- (Release builds use `bin/Release/...` accordingly.)
+- **Release builds** use `bin/Release/...` instead of `bin/Debug/...`
 
-**Directory structure inside `logs/`:**
+**Directory Structure Inside `logs/`:**
 ```
 logs/
-├── embeddings/
-│   └── YYYYMMDD/
-│       └── <guid>.json
-├── upload-queue/
+├── embeddings/                    # Generated vector embeddings
+│   └── YYYYMMDD/                  # Daily folders
+│       └── <guid>.json            # Individual embedding files
+├── upload-queue/                  # Archived data ready for export
 │   └── <hostname>-<username>-YYYYMMDD/
-│       └──
-├── application-aggregator-YYYYMMDD.log
+│       ├── logs/                  # Archived log files
+│       └── embeddings/            # Archived embeddings
+├── application-aggregator-YYYYMMDD.log      # Service-specific logs
 ├── application-cronprocessor-YYYYMMDD.log
 ├── application-logger-YYYYMMDD.log
 ├── application-processor-YYYYMMDD.log
-├── processing_state.json
-├── keyboard_logs-YYYYMMDD.txt
-├── mouse_logs-YYYYMMDD.txt
-└── window_monitor_logs-YYYYMMDD.txt
+├── processing_state.json          # Processing progress tracking
+├── keyboard_logs-YYYYMMDD.txt     # Captured keyboard input (encrypted)
+├── mouse_logs-YYYYMMDD.txt        # Mouse coordinates and clicks
+└── window_monitor_logs-YYYYMMDD.txt  # Window focus changes (encrypted)
 ```
-- The `embeddings/` folder contains daily subfolders with individual embedding JSON files.
-- The `upload-queue/` folder may be empty during development. Only filled after the aggregator has run once and there was data to aggregate.
-- Log and data files are created per day.
 
-> **Note:** The exact path will differ depending on your build configuration (Debug/Release) and target architecture (x64/arm64).
+**File Purpose Explanations:**
+- **Daily log files** capture raw user activity data with ROT13 encryption for sensitive content
+- **Embeddings folder** contains the processed output (384-dimensional vectors) organized by date
+- **Processing state** tracks which lines have been processed to enable resumable batch processing
+- **Application logs** provide detailed service-specific debugging information
+- **Upload queue** appears only after running the Aggregator, containing organized archives
 
 ### 4.6 Debug vs Release Behavior
 
-The application behaves differently based on the build configuration:
+The application is designed with two distinct build configurations that provide very different user experiences. Understanding these differences is crucial for .NET development, as the configuration affects everything from file storage locations to security behavior and user interface visibility.
 
-#### Debug Mode (`-c Debug` or default):
+**Key Architectural Differences:**
+
+**Console Window Visibility** - Perhaps the most noticeable difference comes from the project file configuration (`LlmEmbeddingsCpu.App.csproj:33-38`):
+- **DEBUG**: `<OutputType>Exe</OutputType>` creates a console application with visible command window
+- **RELEASE**: `<OutputType>WinExe</OutputType>` creates a Windows application that runs silently in background
+
+**File Storage Locations** - The application stores data in completely different locations (`Program.cs:44-56`):
+- **DEBUG**: Files stored in `{ApplicationDirectory}/logs/` (next to executable, easy to find)
+- **RELEASE**: Files stored in `%LOCALAPPDATA%\LlmEmbeddingsCpu\logs\` (user-specific, no admin rights needed)
+
+**Logging Verbosity** - Different minimum log levels provide appropriate detail for each use case:
+- **DEBUG**: `LogLevel.Debug` provides extensive detail for development and troubleshooting
+- **RELEASE**: `LogLevel.Information` logs only essential information to reduce noise
+
+**Data Preservation** - Critical difference in how sensitive keyboard data is handled (`AggregationService.cs:189-197`):
+
+#### Debug Mode Behavior:
 ```csharp
 #if DEBUG
-    // Keyboard logs are MOVED to archive
-    _fileSystemIOService.MoveFile(keyboardLogFilePath, destinationPath);
-    
-    // Extra logging information
-    _logger.LogDebug("Detailed processing information...");
-    
-    // Additional validation checks
-    ValidateEmbeddings(embeddings);
+    // Keyboard logs are PRESERVED (moved to archive for inspection)
+    var keyboardLogCombinedFilePath = Path.Combine(logsPath, "keyboard_logs.txt");
+    _fileSystemIOService.MoveFile(keyboardLogFilePath, keyboardLogCombinedFilePath);
 #endif
 ```
 
-Additionally, the application logs a lot more when run in Debug mode.
-
-#### Release Mode (`-c Release`):
+#### Release Mode Behavior:
 ```csharp
-#if !DEBUG
-    // Keyboard logs are DELETED after processing
+#else
+    // Keyboard logs are DELETED (privacy protection)
+    _logger.LogInformation("Deleting keyboard log file: {KeyboardLogFilePath}", keyboardLogFilePath);
     _fileSystemIOService.DeleteFile(keyboardLogFilePath);
-    
-    // Minimal logging
-    // No validation overhead
 #endif
 ```
+
+**Why This Design:**
+- **Development needs**: You want to inspect captured data, verify encryption/decryption, and debug processing logic
+- **Production privacy**: Keyboard logs contain sensitive information and should be deleted after processing
+- **Debugging visibility**: Console windows help developers see what's happening; production users don't need this distraction
+- **File accessibility**: Developers need easy access to generated files; production users shouldn't need to hunt through system folders
 
 ### 4.7 Typical Development Workflow
 
@@ -1334,43 +1369,52 @@ This section covers the complete deployment pipeline from building the applicati
 
 ### 5.1 .NET Build Fundamentals
 
-#### Build Configurations
+Understanding .NET's build system is crucial for deployment because, unlike languages that compile to native code, .NET applications typically require a runtime environment. However, .NET provides flexible deployment options that can eliminate this dependency, which is essential for distributing desktop applications to end users who may not have .NET installed.
 
-.NET supports two primary build configurations that affect code behavior:
+#### Build Configurations Impact on Application Behavior
 
-**Debug Configuration:**
-- Includes debugging symbols
-- No optimization
-- `DEBUG` conditional compilation symbol defined
-- Larger file size
-- Better stack traces for debugging
+As we've seen in sections 4.1 and 4.6, .NET build configurations fundamentally change how the application behaves at runtime through conditional compilation and optimization settings:
 
-**Release Configuration:**
-- Optimized code
-- No debugging symbols (unless specified)
-- `DEBUG` symbol not defined
-- Smaller file size
-- Better performance
+**Debug Configuration** creates development-friendly builds:
+- **Debugging symbols included**: Enables line-by-line debugging in Visual Studio
+- **No optimization**: Code executes exactly as written, making debugging predictable
+- **`DEBUG` preprocessor symbol**: Activates our development features (console windows, local file storage, preserved keyboard logs)
+- **Larger file size**: Includes extra metadata and unoptimized IL code
+- **Detailed stack traces**: Exact line numbers when exceptions occur
 
-#### Publishing Options
+**Release Configuration** creates production-optimized builds:
+- **Aggressive optimization**: Compiler removes unused code, inlines methods, optimizes loops
+- **No debugging symbols**: Reduces file size and prevents reverse engineering
+- **`DEBUG` symbol undefined**: Activates production behaviors (background operation, AppData storage, deleted keyboard logs)
+- **Smaller, faster executables**: Optimized for performance and distribution
 
-**.NET Publishing Models:**
+#### Deployment Strategy: Self-Contained Single File
 
-1. **Framework-Dependent**: Requires .NET runtime on target machine
-2. **Self-Contained**: Includes .NET runtime with application
-3. **Single File**: Bundles everything into one executable
+For desktop applications like ours, the deployment challenge is that most Windows users don't have .NET 9.0 installed. .NET offers three deployment models, but we chose **Self-Contained Single File** because it provides the best user experience:
 
-We use **Self-Contained Single File** deployment for simplicity:
-- No runtime prerequisites for end users
-- Single executable for easy distribution
-- All dependencies bundled inside
-- Simplified installer creation
+**1. Framework-Dependent Deployment** would require users to install .NET 9.0 runtime first - unacceptable for widespread distribution.
+
+**2. Self-Contained Deployment** includes the .NET runtime but creates many files - complicates installer creation and file management.
+
+**3. Self-Contained Single File** (our choice) bundles everything into one executable:
+- **No runtime prerequisites**: Users don't need to install anything
+- **Single executable**: Simplifies installer creation and reduces confusion
+- **All dependencies included**: ONNX runtime, tokenizer DLLs, model files all embedded
+- **Architecture-specific**: Separate builds for x64 and ARM64 with correct native dependencies
+
+This choice is particularly important for our architecture-specific dependencies. As shown in `LlmEmbeddingsCpu.Services.csproj:19-36`, the tokenizer requires native DLLs (`hf_tokenizers.dll`) that are different for x64 versus ARM64. The single-file publishing process ensures the correct native library is included for each target architecture.
 
 ### 5.2 Building the Application
 
-#### Build Commands for Production:
+The build process transforms our multi-project .NET solution into distribution-ready executables. Unlike the `dotnet run` commands used in development (section 4.4), the `dotnet publish` command creates optimized, standalone executables ready for installation on end-user machines. This process is essential because the development builds are not suitable for distribution - they're optimized for debugging, not performance or user experience.
 
-**x64 Architecture:**
+#### Why Architecture-Specific Builds Are Required
+
+Modern Windows runs on two primary CPU architectures: x64 (Intel/AMD) and ARM64 (newer ARM-based PCs like Surface Pro X). Our application requires architecture-specific builds because of native dependencies - specifically the `hf_tokenizers.dll` used by the embedding service. The .NET runtime and ONNX runtime also have architecture-specific optimizations. Building for the wrong architecture would result in runtime errors or poor performance.
+
+#### Production Build Commands:
+
+**x64 Architecture (Intel/AMD processors):**
 ```bash
 dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj \
   -c Release \
@@ -1383,7 +1427,7 @@ dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj \
   -p:DebugSymbols=false
 ```
 
-**ARM64 Architecture:**
+**ARM64 Architecture (ARM-based Windows PCs):**
 ```bash
 dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj \
   -c Release \
@@ -1396,111 +1440,204 @@ dotnet publish src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj \
   -p:DebugSymbols=false
 ```
 
-**Build Parameters Explained:**
-- `-c Release`: Sets Release configuration (disables DEBUG)
-- `-r win-x64/win-arm64`: Runtime identifier for target architecture
-- `-p:PublishSingleFile=true`: Creates single executable
-- `-p:SelfContained=true`: Includes .NET runtime
-- `-p:IncludeAllContentForSelfExtract=true`: Includes all content files
-- `-p:PublishTrimmed=true`: Removes unused code
-- `-p:DebugType=None`: No debug information
-- `-p:DebugSymbols=false`: No PDB files
+#### Understanding Each Build Parameter:
 
-**Output Locations:**
-- x64: `src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe`
-- ARM64: `src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-arm64\publish\LlmEmbeddingsCpu.App.exe`
+**Configuration and Target:**
+- **`-c Release`**: Activates production optimizations and disables DEBUG conditional compilation (covered in section 4.6)
+- **`-r win-x64/win-arm64`**: Specifies the Runtime Identifier, determining which native dependencies to include
+
+**Deployment Model:**
+- **`-p:PublishSingleFile=true`**: Bundles all managed assemblies into a single executable file
+- **`-p:SelfContained=true`**: Includes the entire .NET runtime, eliminating the need for users to install .NET
+- **`-p:IncludeAllContentForSelfExtract=true`**: Ensures content files (like our ONNX model) are embedded in the executable
+
+**Optimization:**
+- **`-p:PublishTrimmed=true`**: Removes unused code from the .NET libraries, significantly reducing file size
+- **`-p:DebugType=None`** & **`-p:DebugSymbols=false`**: Eliminates all debugging information for smaller, more secure executables
+
+#### Build Output Structure:
+
+The publish process creates architecture-specific executables in predictable locations:
+- **x64**: `src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe`
+- **ARM64**: `src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-arm64\publish\LlmEmbeddingsCpu.App.exe`
+
+These executables are completely self-contained and ready for distribution. Each contains the appropriate .NET runtime, all application code, the ONNX model files, and the correct architecture-specific native libraries.
 
 ### 5.3 Impact of Release Configuration
 
-The `-c Release` flag affects code behavior through conditional compilation:
+The Release configuration fundamentally transforms the application's behavior through conditional compilation - a powerful .NET feature that allows different code paths to be compiled into the final executable based on build settings. This is not just about optimization; it creates two distinctly different versions of the same application for different purposes.
+
+#### Conditional Compilation in Action
+
+As detailed in section 4.6, our application uses `#if DEBUG` and `#else` preprocessor directives to create development-friendly versus production-appropriate behaviors. The most critical example is in keyboard log handling (`AggregationService.cs:189-197`):
 
 ```csharp
-// In Release mode, this code is NOT included:
+// In Release mode, this code path is COMPLETELY REMOVED from the executable:
 #if DEBUG
-    _logger.LogDebug("Detailed debug information");
+    _logger.LogDebug("Moving keyboard log to logs folder for inspection");
     _fileSystemIOService.MoveFile(keyboardLogPath, archivePath);
 #else
-    // This code runs in Release mode:
+    // This is the ONLY code that exists in Release builds:
+    _logger.LogInformation("Deleting keyboard log file for privacy protection");
     _fileSystemIOService.DeleteFile(keyboardLogPath);
 #endif
 ```
 
-**Key Differences in Release Mode:**
-1. Keyboard logs are deleted after processing (privacy)
-2. Reduced logging verbosity
-3. No debug assertions
-4. Optimized performance
+#### Why This Design Is Critical for Privacy and Security
+
+**In Development**: Developers need to inspect captured data to verify encryption, debug processing logic, and ensure the system works correctly. Preserving keyboard logs is essential for development and testing.
+
+**In Production**: Keyboard logs contain potentially sensitive user input (passwords, personal information, private communications). Deleting these logs after processing the embeddings provides privacy protection while still achieving the research goals.
+
+#### Complete Behavioral Transformation in Release Mode:
+
+1. **Privacy Protection**: Sensitive keyboard logs are permanently deleted after embedding generation
+2. **Background Operation**: No console windows appear (`OutputType=WinExe`)
+3. **Optimized Performance**: Code is compiled with aggressive optimizations for better CPU and memory usage
+4. **Minimal Logging**: Only Information-level and above logs are recorded, reducing noise
+5. **Secure Storage**: Files stored in `%LOCALAPPDATA%` rather than easily accessible development folders
+6. **Production Paths**: All file operations use Windows-standard application data directories
+
+This conditional compilation approach allows the same codebase to serve both development needs (transparency, debuggability) and production requirements (privacy, performance, user experience).
 
 ### 5.4 Production File Storage
 
-In production, files are stored in user-specific AppData:
+Production file storage follows Windows conventions and security best practices, representing a complete departure from the development approach (section 4.5). This change is driven by the different needs of end users versus developers and reflects Microsoft's recommended patterns for desktop applications.
 
-**Base Path:** `%LOCALAPPDATA%\LlmEmbeddingsCpu\`
+#### Why AppData/Local Is the Correct Choice
 
-Expands to: `C:\Users\{USERNAME}\AppData\Local\LlmEmbeddingsCpu\`
+As shown in `Program.cs:52-54`, production builds store all data in `%LOCALAPPDATA%\LlmEmbeddingsCpu\`, which expands to `C:\Users\{USERNAME}\AppData\Local\LlmEmbeddingsCpu\`. This location choice addresses several critical requirements:
 
-**Why AppData/Local?**
-- User-specific (each user has separate data)
-- No administrator privileges required
-- Automatically backed up with user profile
-- Hidden from casual browsing
-- Standard location for application data
+**Security and Permissions**: Unlike `C:\Program Files`, the AppData folder doesn't require administrator privileges to write files. This is essential because our application runs as a scheduled task under the user's account, not as an administrator. Attempting to write to Program Files would cause permission denied errors.
 
-**Production Directory Structure:**
+**User Isolation**: Each Windows user gets their own separate data directory. If multiple users share the same computer, their keyboard monitoring and embeddings remain completely separate. This is both a privacy feature and a practical necessity for multi-user systems.
+
+**Windows Integration**: The AppData folder integrates with Windows features like user profile backup, roaming profiles in enterprise environments, and Windows Storage Sense cleanup policies. Microsoft explicitly recommends this location for application-generated data.
+
+**Privacy Through Obscurity**: Unlike development mode where files are easily visible in the project directory, AppData is hidden from casual browsing. Most users never navigate to these folders, reducing the chance of accidental data exposure.
+
+#### Storage Architecture in Production
+
+**Base Path:** `%LOCALAPPDATA%\LlmEmbeddingsCpu\logs\`  
+**Expands to:** `C:\Users\{USERNAME}\AppData\Local\LlmEmbeddingsCpu\logs\`
+
+**Complete Directory Structure:**
 ```
-C:\Users\{USERNAME}\AppData\Local\LlmEmbeddingsCpu\
-├── keyboard_logs-YYYYMMDD.txt
-├── window_monitor_logs-YYYYMMDD.txt
-├── mouse_logs-YYYYMMDD.txt
-├── processing_state.json
-├── embeddings\
-│   └── YYYYMMDD\
-│       └── {guid}.json
-├── upload-queue\
+C:\Users\{USERNAME}\AppData\Local\LlmEmbeddingsCpu\logs\
+├── keyboard_logs-YYYYMMDD.txt        # Encrypted keyboard input (deleted after processing)
+├── window_monitor_logs-YYYYMMDD.txt  # Window focus changes (encrypted titles)
+├── mouse_logs-YYYYMMDD.txt           # Mouse coordinates and clicks
+├── processing_state.json             # Processing progress tracking
+├── embeddings\                       # Generated vector embeddings
+│   └── YYYYMMDD\                     # Daily organization
+│       └── {guid}.json               # Individual embedding files
+├── upload-queue\                     # Aggregated data ready for export
 │   └── COMPUTERNAME-USERNAME-YYYYMMDD\
-└── application-*.log
+│       ├── logs\                     # Archived logs
+│       └── embeddings\               # Archived embeddings
+└── application-*.log                 # Service-specific application logs
 ```
 
 ### 5.5 Application vs Installer Executable
 
-**Two Different Executables:**
+It's crucial to understand that we create two completely different types of executables in our deployment pipeline, each serving a distinct purpose. This distinction is fundamental to Windows application distribution and often confuses newcomers to desktop development.
 
-1. **Application Executable** (`LlmEmbeddingsCpu.App.exe`)
-   - The actual program that does the work
-   - Created by `dotnet publish`
-   - Can be run directly with command-line arguments
-   - Installed to: `C:\Program Files\LLM Embeddings CPU\`
+#### The Application Executable (`LlmEmbeddingsCpu.App.exe`)
 
-2. **Installer Executable** (`LlmEmbeddingsCpuInstallerX64.exe`)
-   - Created by Inno Setup
-   - Wraps the application executable
-   - Handles installation process
-   - Creates scheduled tasks
-   - Installs prerequisites
+This is the actual program created by our `dotnet publish` commands (section 5.2). It contains all the business logic, embedded .NET runtime, ONNX model, and tokenizer dependencies. This executable:
+
+- **Performs the actual work**: Captures keyboard input, generates embeddings, monitors resources
+- **Accepts command-line arguments**: `--logger`, `--processor`, `--cron-processor`, `--aggregator`
+- **Can be run directly**: If you have the exe file, you can double-click it or run it from command line
+- **Is completely self-contained**: No additional installation required to execute
+- **Gets installed to**: `C:\Program Files\LLM Embeddings CPU\LlmEmbeddingsCpu.App.exe`
+
+However, simply having this executable is not enough for production deployment because:
+- End users don't know how to use command-line arguments
+- The application needs to run automatically on system startup
+- Windows scheduled tasks must be configured
+- Prerequisites like Visual C++ Redistributable might be missing
+
+#### The Installer Executable (`LlmEmbeddingsCpuInstallerX64.exe`)
+
+This is a separate executable created by Inno Setup that wraps our application executable and automates the entire deployment process. The installer:
+
+- **Contains the application executable** embedded within it as a resource
+- **Handles system configuration**: Creates scheduled tasks, installs prerequisites, configures Windows settings
+- **Provides user interface**: Installation wizard that guides users through setup
+- **Requires administrator privileges**: Because it writes to Program Files and creates system-wide scheduled tasks
+- **Is architecture-specific**: Separate installers for x64 and ARM64 containing the appropriate application executable
+
+#### Why This Two-Executable Approach Is Necessary
+
+**Distribution Complexity**: Most end users cannot be expected to:
+- Extract files to the correct location
+- Run command-line tools to create scheduled tasks
+- Install Visual C++ Redistributable manually
+- Configure Windows Task Scheduler settings
+
+**System Integration**: The installer handles all the Windows-specific configuration that transforms our application from a standalone executable into a properly integrated system service that starts automatically and runs continuously in the background.
+
+This pattern is standard for Windows desktop applications - the application does the work, the installer makes it part of the system.
 
 ### 5.6 Inno Setup Configuration (.iss files)
 
-The `.iss` files define how the installer behaves:
+Inno Setup uses configuration files written in a Pascal-like scripting language to define installer behavior. These `.iss` files are comprehensive scripts that control every aspect of the installation process, from file extraction to system configuration. Understanding the structure helps explain why our installer works reliably across different Windows configurations.
 
+#### Core Configuration Structure
+
+Our installer configuration (`windows-x64-task.iss` and `windows-arm64-task.iss`) demonstrates the multi-stage approach required for desktop application deployment:
+
+**Installation Metadata and File Handling:**
 ```pascal
 [Setup]
-AppName=LLM Embeddings CPU
-DefaultDirName={pf}\LLM Embeddings CPU
-OutputDir=Output
-Compression=lzma2
-SolidCompression=yes
+AppName=LLM Embeddings CPU Background Agent
+DefaultDirName={autopf}\LLM Embeddings CPU     ; {autopf} = Program Files
+PrivilegesRequired=admin                        ; Required for system integration
+Compression=lzma                               ; Efficient compression for distribution
+WizardStyle=modern                             ; Modern Windows 11-compatible UI
 
 [Files]
-Source: "src\...\publish\LlmEmbeddingsCpu.App.exe"; DestDir: "{app}"
-Source: "prerequisites\VC_redist.x64.exe"; DestDir: "{tmp}"
-
-[Run]
-; Install Visual C++ Redistributable if needed
-Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/quiet /norestart"
-
-; Create scheduled tasks
-Filename: "schtasks.exe"; Parameters: "/Create /F /RL HIGHEST /SC ONLOGON /DELAY 0000:10 /TN ""LLMEmbeddingsCpuLogger"" /TR ""'{app}\LlmEmbeddingsCpu.App.exe' --logger"" /IT"
+; The main application executable (built by dotnet publish)
+Source: ".\src\...\publish\LlmEmbeddingsCpu.App.exe"; DestDir: "{app}"
+; Visual C++ Redistributable (needed for ONNX runtime)
+Source: "prerequisites\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 ```
+
+#### Intelligent Prerequisite Management
+
+The installer includes sophisticated logic to avoid unnecessary installations:
+
+```pascal
+[Code]
+function ShouldInstallVcRedist: Boolean;
+begin
+  // Check Windows registry to see if VC++ 2015-2022 is already installed
+  if not RegQueryDwordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then
+    Result := True  // Not found, needs installation
+  else
+    Result := (Installed <> 1);  // Found but not properly installed
+end;
+```
+
+This prevents the installer from running the VC++ Redistributable installer unnecessarily, making installation faster and more reliable.
+
+#### Multi-Stage System Integration
+
+The `[Run]` section executes a carefully orchestrated sequence (`windows-x64-task.iss:73-121`):
+
+1. **Install Prerequisites**: VC++ Redistributable if needed
+2. **Create Scheduled Tasks**: Three separate tasks for Logger, CronProcessor, and Aggregator
+3. **Configure Task Settings**: PowerShell commands to set battery and wake settings
+4. **Launch Application**: Start the Logger immediately after installation
+
+#### Why This Complexity Is Necessary
+
+**System Permissions**: Creating scheduled tasks and writing to Program Files requires administrator privileges. The installer handles the privilege elevation.
+
+**Dependency Management**: ONNX runtime requires Visual C++ Redistributable. Rather than telling users to install it separately, we bundle it and install it automatically if needed.
+
+**Windows Integration**: Scheduled tasks must be configured with specific settings (run on battery, wake computer, highest privileges) that require multiple PowerShell commands beyond basic task creation.
 
 ### 5.7 Task Scheduler Configuration
 
@@ -1579,113 +1716,175 @@ This section explains key architectural decisions and provides debugging strateg
 
 ### 6.1 Why Scheduled Tasks Instead of Windows Services
 
-**The Constraint:** Windows Services run in Session 0, isolated from user sessions. They cannot:
-- Access user-level keyboard/mouse hooks
-- Interact with user desktop
-- See user-specific window information
+This architectural decision addresses one of the fundamental constraints of Windows desktop application development: how to capture user input while running continuously in the background. The choice between Windows Services and Scheduled Tasks has implications for functionality, security, and user experience.
 
-**The Solution:** Scheduled tasks run in the user's session, allowing:
-- Global keyboard and mouse hooks
-- Window title monitoring
-- User-specific data access
-- Proper interaction with desktop applications
+#### The Windows Services Limitation
+
+Windows Services were initially considered because they provide the ideal background execution model - they start automatically, run continuously, and don't require user interaction. However, Windows Services operate in "Session 0," which is a special isolated environment introduced in Windows Vista for security reasons. This isolation creates technical barriers for our application:
+
+**Session 0 Isolation Problems:**
+- **No Desktop Access**: Services cannot see or interact with the user desktop, making window title monitoring impossible
+- **Hook Restrictions**: Global keyboard and mouse hooks (`Hook.GlobalEvents()` in `MouseMonitorService.cs:26` and `KeyboardMonitorService.cs:33`) require access to the user's input session, which services cannot reach
+- **User Context Separation**: Services run under system accounts and cannot access user-specific data or settings
+
+#### The Scheduled Tasks Solution
+
+As implemented in our installer (`windows-x64-task.iss:78-115`), scheduled tasks configured to run "on user logon" execute within the user's interactive session, solving all the Session 0 limitations:
+
+**User Session Integration:**
+- **Desktop Interaction**: Tasks can monitor window focus changes and capture window titles (essential for our `WindowMonitorrService`)
+- **Input Hooks**: Global keyboard and mouse hooks work correctly because they operate in the same session as the user's input
+- **User Context**: Tasks run under the user's account, naturally accessing the correct `%LOCALAPPDATA%` directories and user-specific resources
 
 ### 6.2 Manual Task Management
 
-#### Viewing Tasks via Command Line:
+Understanding how to manage Windows Scheduled Tasks is crucial for troubleshooting and maintaining the application, especially since the three tasks (Logger, CronProcessor, Aggregator) form the complete automation system. Unlike Windows Services which have straightforward management tools, scheduled tasks require either the Task Scheduler GUI or command-line tools for administration.
 
+#### Diagnostic Commands for System Health
+
+**Viewing Task Information:**
 ```cmd
-# List all LLM Embeddings tasks
+# List all LLM Embeddings tasks with detailed information
 schtasks /Query /TN "LLMEmbeddingsCpu*" /V /FO LIST
 
-# Detailed view of specific task
+# Get detailed configuration for specific task
 schtasks /Query /TN "LLMEmbeddingsCpuLogger" /V /FO LIST
 
-# Check task status
+# Quick status check (useful for monitoring scripts)
 schtasks /Query /TN "LLMEmbeddingsCpuLogger" /FO CSV | findstr "Status"
 ```
 
-#### Common Task Commands:
+The verbose (`/V`) flag provides critical information including last run time, next run time, task status, and any error codes - essential for diagnosing issues.
 
+#### Operational Task Control
+
+**Managing Task Execution:**
 ```cmd
-# Run task immediately
+# Manually trigger task immediately (useful for testing)
 schtasks /Run /TN "LLMEmbeddingsCpuLogger"
 
-# Stop running task
+# Stop a running task (graceful termination)
 schtasks /End /TN "LLMEmbeddingsCpuLogger"
 
-# Disable task
+# Temporarily disable task (stops automatic execution)
 schtasks /Change /TN "LLMEmbeddingsCpuLogger" /DISABLE
 
-# Enable task
+# Re-enable previously disabled task
 schtasks /Change /TN "LLMEmbeddingsCpuLogger" /ENABLE
 
-# Delete task
+# Permanently remove task (use with caution)
 schtasks /Delete /TN "LLMEmbeddingsCpuLogger" /F
 ```
 
+#### Critical Task Interdependencies
+
+Remember that our three tasks work together as a coordinated system:
+- **Logger**: Must run continuously to capture data
+- **CronProcessor**: Processes any remaining data that the opportunistic Processor missed
+- **Aggregator**: Archives completed data and cleans up the system
+
+Disabling or deleting tasks can break this coordination, so always consider the system-wide impact of task management operations.
+
 ### 6.3 Debugging Deployment Issues
 
-#### Common Problem: Application Crashes After Deployment
+Deployment troubleshooting represents one of the most challenging aspects of Windows desktop application development because the production environment differs significantly from development. Unlike development where you have Visual Studio debugger, console output, and direct file access, production deployment issues often manifest as cryptic error codes with no obvious cause.
 
-**Symptoms:**
-- Task shows as "Last Run Result: 0x1" or other error code
-- No log files created
-- Process exits immediately
+#### The Challenge of Silent Failures
 
-**Debugging Steps:**
+**Common Production Symptoms:**
+- **Cryptic Error Codes**: Task Scheduler shows "Last Run Result: 0x1" with no additional context
+- **Silent Failures**: No log files created, suggesting the application never successfully initializes
+- **Immediate Exits**: Process starts and stops within seconds, providing no opportunity for diagnosis
 
-1. **Check Task Scheduler History:**
-   - Open Task Scheduler
-   - Find task in Library
-   - Click "History" tab
-   - Look for error events
+These symptoms are particularly frustrating because they occur after the installer succeeded, leading to the false impression that everything was configured correctly.
 
-2. **Decode Error Codes:**
-   Task Scheduler returns errors in hexadecimal. Common codes:
-   
-   ```powershell
-   # Convert hex to decimal
-   [Convert]::ToInt32("0x1", 16)  # Returns 1
-   
-   # Look up error
-   net helpmsg 1  # "Incorrect function"
-   ```
-   
-   **Common Error Codes:**
-   - `0x1` (1): General failure
-   - `0x2` (2): File not found
-   - `0x5` (5): Access denied
-   - `0x8007000E` (-2147024882): Out of memory
-   - `0x80070032` (-2147024846): Not supported
+#### Systematic Debugging Methodology
 
-3. **Enable Console for Debugging:**
-   Temporarily modify the task to keep console open:
-   ```cmd
-   schtasks /Change /TN "LLMEmbeddingsCpuLogger" 
-            /TR "cmd /k 'C:\Program Files\LLM Embeddings CPU\LlmEmbeddingsCpu.App.exe' --logger"
-   ```
+**Step 1: Analyze Task Scheduler History**
+
+Task Scheduler maintains detailed execution logs that provide the first clues about what went wrong:
+1. Open Task Scheduler (taskschd.msc)
+2. Navigate to Task Scheduler Library
+3. Find the problematic task (LLMEmbeddingsCpuLogger, LLMEmbeddingsCpuCron, or LLMEmbeddingsCpuAggregator)
+4. Click the "History" tab to see execution events
+
+The history reveals timing information, error codes, and process termination reasons that are invisible from a simple status check.
+
+**Step 2: Decode Windows Error Codes**
+
+Task Scheduler reports errors in hexadecimal format, which requires conversion and lookup for meaningful interpretation:
+
+```powershell
+# Convert hex to decimal for lookup
+[Convert]::ToInt32("0x1", 16)  # Returns 1
+
+# Look up the meaning of the error code
+net helpmsg 1  # Returns: "Incorrect function"
+```
+
+**Critical Error Code Interpretations:**
+- **`0x1` (1)**: General failure - usually indicates missing dependencies or initialization problems
+- **`0x2` (2)**: File not found - executable path is incorrect or files were not installed properly
+- **`0x5` (5)**: Access denied - insufficient privileges or security restrictions
+- **`0x8007000E` (-2147024882)**: Out of memory - could indicate memory exhaustion or corrupt memory
+- **`0x80070032` (-2147024846)**: Not supported - often related to missing .NET runtime or incompatible architecture
+
+**Step 3: Enable Debug Visibility**
+
+The most powerful debugging technique involves temporarily modifying the scheduled task to reveal what's happening:
+
+```cmd
+# Modify task to keep console window open for examination
+schtasks /Change /TN "LLMEmbeddingsCpuLogger" 
+         /TR "cmd /k 'C:\Program Files\LLM Embeddings CPU\LlmEmbeddingsCpu.App.exe' --logger"
+```
+
+This modification wraps the application execution in a command prompt window that stays open (`cmd /k`) even after the application exits, allowing you to see any error messages or exceptions that would normally be invisible.
 
 ### 6.4 The DLL Dependency Problem
 
-**The Issue:** `System.DllNotFoundException` for `hf_tokenizers.dll`
+This section documents the most annoying issue encountered during development: the cascade of native DLL dependencies that can cause complete application failure even when the .NET application itself is perfectly self-contained.
 
-**Root Cause:** Missing Visual C++ Runtime (`VCRUNTIME140.dll`)
+#### The Deceptive Nature of the Error
 
-**Diagnosis with Process Monitor:**
+**Surface-Level Symptom**: `System.DllNotFoundException` for `hf_tokenizers.dll`
 
-1. **Download Process Monitor** (procmon.exe) from Microsoft Sysinternals
+This error message is misleading because it suggests that the `hf_tokenizers.dll` file is missing from the application deployment. However, as shown in our project configuration (`LlmEmbeddingsCpu.Services.csproj:22-25` and `32-35`), this DLL is explicitly included in the build output through the `<Content>` directives and should be present in the deployed application.
 
-2. **Configure Filter:**
+**The Hidden Dependency Chain**: The actual problem occurs because `hf_tokenizers.dll` is a native library that depends on the Visual C++ runtime (`VCRUNTIME140.dll`). When the tokenizer service tries to initialize (`IntfloatEmbeddingService.cs:63`), the .NET runtime attempts to load the native DLL, which in turn attempts to load its dependency, causing the failure.
+
+#### Why Self-Contained Deployment Doesn't Solve This
+
+**The .NET Runtime Limitation**: While .NET's self-contained deployment includes the .NET runtime and all managed dependencies, it cannot automatically bundle native dependencies of third-party libraries. The `Tokenizers.DotNet` library requires platform-specific native code that depends on the Microsoft Visual C++ Redistributable.
+
+**Architecture-Specific Complexity**: As demonstrated in our build configuration, we must include different native libraries for x64 versus ARM64 architectures. Each has its own dependency requirements that must be satisfied on the target system.
+
+#### Advanced Diagnosis with Process Monitor
+
+When DLL loading fails, Windows provides limited error information. Process Monitor (ProcMon) reveals the complete dependency resolution process:
+
+**Setup Process Monitor for Dependency Tracking:**
+1. **Download Process Monitor** from Microsoft Sysinternals (part of Windows administrative tools)
+2. **Configure Focused Filtering**:
    - Filter → Filter... (Ctrl+L)
-   - Add: `Process Name` → `is` → `LlmEmbeddingsCpu.App.exe` → `Include`
-   - Add: `Result` → `is` → `NAME NOT FOUND` → `Include`
+   - Add filter: `Process Name` → `is` → `LlmEmbeddingsCpu.App.exe` → `Include`
+   - Add filter: `Result` → `is` → `NAME NOT FOUND` → `Include`
+   - This configuration shows only failed file access attempts by our application
 
-3. **Capture and Analyze:**
-   ```
-   Example Output:
-   LlmEmbeddingsCpu.App.exe | CreateFile | C:\Windows\System32\VCRUNTIME140.dll | NAME NOT FOUND
-   LlmEmbeddingsCpu.App.exe | CreateFile | C:\Windows\SysWOW64\VCRUNTIME140.dll | NAME NOT FOUND
-   ```
+**Typical Diagnosis Output:**
+```
+Process                 | Operation  | Path                                    | Result
+LlmEmbeddingsCpu.App.exe | CreateFile | C:\Windows\System32\VCRUNTIME140.dll  | NAME NOT FOUND
+LlmEmbeddingsCpu.App.exe | CreateFile | C:\Windows\SysWOW64\VCRUNTIME140.dll  | NAME NOT FOUND
+```
 
-4. **Solution:** Installer now includes VC++ Redistributable
+This output reveals that the application is trying to load `VCRUNTIME140.dll` from standard Windows system directories, but the file doesn't exist because the Visual C++ Redistributable was never installed.
+
+#### Comprehensive Solution Implementation
+
+**Automated Dependency Management**: Our installer (`windows-x64-task.iss:50-65` and `73`) addresses this problem through intelligent prerequisite detection and installation:
+
+1. **Registry-Based Detection**: The installer checks the Windows registry to determine if Visual C++ 2015-2022 Redistributable is already installed
+2. **Conditional Installation**: Only runs the redistributable installer if needed, avoiding unnecessary installations
+3. **Silent Installation**: Uses `/install /quiet /norestart` parameters to install without user interaction
+4. **Verification**: The registry check ensures the installation succeeded before proceeding
