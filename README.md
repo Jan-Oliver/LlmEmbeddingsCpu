@@ -34,7 +34,6 @@ LlmEmbeddingsCpu/
 The following diagram illustrates the dependency relationships between projects and external integrations:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
 graph TB
     %% Project Dependencies
     subgraph "LlmEmbeddingsCpu Solution"
@@ -159,7 +158,6 @@ The application determines its mode based on command-line arguments:
 The complete system operates through a sophisticated service architecture where each component has specific responsibilities and interactions:
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': { 'primaryColor': '#ffffff', 'primaryTextColor': '#000000', 'primaryBorderColor': '#000000', 'lineColor': '#000000', 'secondaryColor': '#ffffff', 'tertiaryColor': '#ffffff', 'background': '#ffffff', 'mainBkg': '#ffffff', 'secondaryBkg': '#ffffff', 'tertiaryBkg': '#ffffff'}}}%%
 graph TB
     %% Service Flow
     subgraph "Service Architecture"
@@ -241,7 +239,7 @@ graph TB
 
 1. **Logger Mode**: All monitoring services capture user activity in real-time, with ResourceMonitorService automatically launching processors when CPU usage is low
 2. **Processor Mode**: ContinuousProcessingService processes logs in resource-aware batches, generating embeddings through IntfloatEmbeddingService
-3. **CronProcessor Mode**: CronProcessingService ensures complete processing of all pending logs during scheduled times
+3. **CronProcessor Mode**: CronProcessingService ensures complete processing of all pending logs into embeddings through IntfloatEmbeddingService during scheduled times
 4. **Aggregator Mode**: AggregationService archives completed data from all IO services into upload-ready structures
 
 **Key Interactions:**
@@ -253,10 +251,9 @@ graph TB
 
 ### 2.3 Main Logger Process
 
-The Logger mode is the primary continuous process that captures user activity.
+The Logger mode is the primary continuous process that captures user activity through global system hooks. It runs four monitoring services in parallel: keyboard input buffering, mouse click tracking, window focus monitoring, and resource monitoring. The system intelligently buffers keyboard input (up to 1,000 characters) and applies ROT13 encryption for privacy. The ResourceMonitorService automatically launches processor instances when CPU usage stays below 30% for sustained periods. The sequence diagram below shows the complete startup, monitoring, and shutdown flow.
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant User as 👤 User
     participant Program as 📱 Program.cs
@@ -356,10 +353,9 @@ sequenceDiagram
 
 ### 2.4 Continuous Processor
 
-The Processor mode handles opportunistic batch processing when system resources permit.
+The Processor mode handles opportunistic batch processing when system resources permit. It monitors CPU usage and processes keyboard logs in batches of 10, gracefully stopping when CPU usage exceeds 80%. This mode maintains processing state to resume work after interruptions and is typically launched automatically by the ResourceMonitorService when resources are available. See the sequence diagram below for the complete interaction flow.
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant Program as 📱 Program.cs
     participant CPS as ⚡ ContinuousProcessingService
@@ -473,10 +469,9 @@ sequenceDiagram
 
 ### 2.5 Cron Processor
 
-The CronProcessor mode ensures complete processing during scheduled times.
+The CronProcessor mode ensures complete processing during scheduled times without any resource constraints. Unlike the Continuous Processor, it processes all available dates completely, ignoring CPU usage limits. This mode is designed for scheduled execution (e.g., 12 AM daily) to guarantee that no logs are left unprocessed, making it ideal for handling large backlogs during off-peak hours. The sequence diagram below shows the brute-force processing approach.
 
 ```mermaid
-%%{init: {'theme':'neutral'}}%%
 sequenceDiagram
     participant Program as 📱 Program.cs
     participant CRPS as ⏰ CronProcessingService
@@ -561,13 +556,13 @@ sequenceDiagram
 
 **Key Features:**
 - No resource checking - processes everything
-- Designed for off-hours execution (e.g., 3 AM)
+- Designed for off-hours execution (e.g., 12 AM)
 - Ensures no logs are left unprocessed
 - Handles large backlogs efficiently
 
 ### 2.6 Aggregator
 
-The Aggregator mode performs housekeeping and prepares data for upload.
+The Aggregator mode performs housekeeping and prepares data for upload by archiving completed processing runs. It identifies fully processed dates, creates structured archive directories (`upload-queue/hostname-user-YYYYMMDD/`), and moves all related files (logs, embeddings, application logs) into organized folders. In DEBUG mode, keyboard logs are preserved; in RELEASE mode, they are deleted for privacy. The sequence diagram below details the complete archiving workflow.
 
 ```mermaid
 sequenceDiagram
@@ -684,6 +679,8 @@ sequenceDiagram
 ```
 
 **Archive Structure:**
+
+The final folder structure created by the aggregator is as follows
 ```
 upload-queue/
 └── COMPUTERNAME-USERNAME-YYYYMMDD/
@@ -703,7 +700,84 @@ upload-queue/
 
 The Data layer provides a clean abstraction over file system operations, allowing the business logic to remain independent of storage implementation details. All services follow a consistent pattern and handle path management internally.
 
-### 3.1 FileSystemIOService - The Foundation
+### 3.1 File System Services Architecture
+
+The file system services follow a clean 3-layer architecture that separates business logic from file operations. This design ensures clear separation of concerns. The diagram below shows the complete dependency structure:
+
+```mermaid
+graph TB
+    subgraph "Layer 3: Business Logic Services"
+        direction TB
+        subgraph "Monitor Services"
+            KMS["<b>KeyboardMonitorService</b><br/>⌨️ Keyboard Event Capture"]
+            MMS["<b>MouseMonitorService</b><br/>🖱️ Mouse Event Capture"]
+            WMS["<b>WindowMonitorrService</b><br/>🪟 Window Focus Tracking"]
+        end
+        
+        subgraph "Processing Services"
+            CPS["<b>ContinuousProcessingService</b><br/>⚡ Resource-Aware Processing"]
+            CRPS["<b>CronProcessingService</b><br/>⏰ Scheduled Processing"]
+            RMS["<b>ResourceMonitorService</b><br/>📊 System Resource Monitoring"]
+        end
+        
+        subgraph "Utility Services"
+            AS["<b>AggregationService</b><br/>📦 Data Archiving"]
+        end
+    end
+    
+    subgraph "Layer 2: Domain-Specific IO Services"
+        direction TB
+        KLIS["<b>KeyboardLogIOService</b><br/>📝 Encrypted Keyboard Logs"]
+        MLIS["<b>MouseLogIOService</b><br/>🖱️ Mouse Event Logs"]
+        WLIS["<b>WindowLogIOService</b><br/>🗂️ Encrypted Window Logs"]
+        EIS["<b>EmbeddingIOService</b><br/>🧠 Embedding JSON Storage"]
+        PSIS["<b>ProcessingStateIOService</b><br/>📊 Progress Tracking"]
+    end
+    
+    subgraph "Layer 1: Foundation Service"
+        FS["<b>FileSystemIOService</b><br/>💾 Low-Level File Operations"]
+    end
+    
+    %% Layer 3 to Layer 2 Dependencies
+    KMS --> KLIS
+    MMS --> MLIS
+    WMS --> WLIS
+    CPS --> KLIS
+    CPS --> EIS
+    CPS --> PSIS
+    CRPS --> KLIS
+    CRPS --> EIS
+    CRPS --> PSIS
+    RMS --> KLIS
+    AS --> KLIS
+    AS --> MLIS
+    AS --> WLIS
+    AS --> EIS
+    AS --> PSIS
+    
+    %% Layer 2 to Layer 1 Dependencies
+    KLIS --> FS
+    MLIS --> FS
+    WLIS --> FS
+    EIS --> FS
+    PSIS --> FS
+    
+    %% Styling
+    classDef layer3 fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000000
+    classDef layer2 fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000000
+    
+    class KMS,MMS,WMS,CPS,CRPS,RMS,AS layer3
+    class KLIS,MLIS,WLIS,EIS,PSIS layer2
+    class FS layer1
+```
+
+**Architecture Benefits:**
+- **Layer 3**: Business logic services focus on domain operations without file system concerns
+- **Layer 2**: Specialized IO services provide domain-specific file operations with encryption and formatting
+- **Layer 1**: Single foundation service handles all low-level file operations with consistent error handling
+
+### 3.2 FileSystemIOService - The Foundation
 
 All IO services depend on `FileSystemIOService`, which provides:
 
@@ -725,7 +799,8 @@ public class FileSystemIOService
 ```
 
 **Base Path Resolution:**
-- **Development**: Current working directory
+- **ARM-Development**: `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-arm64/logs/`
+- **x64-Development**: `./src/LlmEmbeddingsCpu.App/bin/Debug/net9.0-windows/win-x64/logs/`
 - **Production**: `%LOCALAPPDATA%\LlmEmbeddingsCpu\` (user-specific, no admin rights required)
 
 ### 3.2 Data Encryption Strategy
