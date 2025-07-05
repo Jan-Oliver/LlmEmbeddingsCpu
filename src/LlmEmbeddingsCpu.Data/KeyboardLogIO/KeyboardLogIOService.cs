@@ -57,6 +57,16 @@ namespace LlmEmbeddingsCpu.Data.KeyboardLogIO
         /// <returns>An <see cref="IEnumerable{DateTime}"/> containing the dates to be processed.</returns>
         public IEnumerable<DateTime> GetDatesToProcess()
         {
+            return GetDatesToProcess(includeToday: false);
+        }
+
+        /// <summary>
+        /// Retrieves a collection of unique dates for which keyboard log files exist and need to be processed.
+        /// </summary>
+        /// <param name="includeToday">Whether to include today's logs in the result.</param>
+        /// <returns>An <see cref="IEnumerable{DateTime}"/> containing the dates to be processed.</returns>
+        public IEnumerable<DateTime> GetDatesToProcess(bool includeToday)
+        {
             var files = _fileSystemIOService.ListFiles("*.txt");
             var logFiles = files.Where(f =>  
                 f.StartsWith(_keyboardLogBaseFileName))
@@ -84,7 +94,7 @@ namespace LlmEmbeddingsCpu.Data.KeyboardLogIO
                     }
                     return DateTime.MinValue;
                 })
-                .Where(d => d != DateTime.MinValue && d < currentDate)
+                .Where(d => d != DateTime.MinValue && (includeToday ? d <= currentDate : d < currentDate))
                 .Distinct()
                 .OrderBy(d => d);
         }

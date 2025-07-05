@@ -178,8 +178,8 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         {
             var logFiles = new List<string>();
             
-            // Get keyboard log files
-            var datesToProcess = _keyboardLogIOService.GetDatesToProcess();
+            // Get keyboard log files (including today's logs for resource monitoring)
+            var datesToProcess = _keyboardLogIOService.GetDatesToProcess(includeToday: true);
             foreach (var date in datesToProcess)
             {
                 logFiles.Add(_keyboardLogIOService.GetFilePath(date));
