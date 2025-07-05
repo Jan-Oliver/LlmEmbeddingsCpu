@@ -2,14 +2,17 @@ using Gma.System.MouseKeyHook;
 using System.Text;
 using System.Windows.Forms;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.KeyboardInputStorage;
+using LlmEmbeddingsCpu.Data.KeyboardLogIO;
 using Microsoft.Extensions.Logging;
 using LlmEmbeddingsCpu.Core.Enums;
 
 namespace LlmEmbeddingsCpu.Services.KeyboardMonitor;
 
+/// <summary>
+/// Monitors global keyboard events, buffers printable characters, and logs special key combinations.
+/// </summary>
 public sealed class KeyboardMonitorService(
-    KeyboardInputStorageService keyboardInputStorageService,
+    KeyboardLogIOService keyboardLogIOService,
     ILogger<KeyboardMonitorService> logger)
     : IDisposable
 {
@@ -17,10 +20,14 @@ public sealed class KeyboardMonitorService(
 
     private IKeyboardEvents? _hook;
     private readonly StringBuilder _buffer = new();
-    private readonly KeyboardInputStorageService _storage = keyboardInputStorageService;
+    private readonly KeyboardLogIOService _storage = keyboardLogIOService;
     private readonly ILogger<KeyboardMonitorService> _log = logger;
 
     /* ------------------------------------------------------------------ */
+    
+    /// <summary>
+    /// Starts monitoring keyboard events.
+    /// </summary>
     public void StartTracking()
     {
         _hook = Hook.GlobalEvents();
@@ -30,6 +37,9 @@ public sealed class KeyboardMonitorService(
         _log.LogInformation("Keyboard tracking started …");
     }
 
+    /// <summary>
+    /// Stops monitoring keyboard events and flushes any buffered input.
+    /// </summary>
     public void StopTracking()
     {
         FlushBuffer();
@@ -41,9 +51,16 @@ public sealed class KeyboardMonitorService(
         _log.LogInformation("Keyboard tracking stopped.");
     }
 
+    /// <summary>
+    /// Disposes the keyboard monitor and stops tracking.
+    /// </summary>
     public void Dispose() => StopTracking();
 
     /* ---------------------------- events ------------------------------ */
+    
+    /// <summary>
+    /// Handles the KeyPress event for printable characters.
+    /// </summary>
     private void OnKeyPress(object? _, KeyPressEventArgs e)
     {
         if (char.IsControl(e.KeyChar)) return;
@@ -57,6 +74,9 @@ public sealed class KeyboardMonitorService(
             FlushBuffer();
     }
 
+    /// <summary>
+    /// Handles the KeyDown event for special keys and key combinations.
+    /// </summary>
     private void OnKeyDown(object? _, KeyEventArgs e)
     {
         if (!ShouldLogSpecial(e)) return;   // “normal” key → ignore
@@ -67,7 +87,11 @@ public sealed class KeyboardMonitorService(
 
     /* ------------------------- classification ------------------------- */
 
-    /// <summary>True ⇢ this key press counts as “special” and should be logged.</summary>
+    /// <summary>
+    /// Determines if a key event should be logged as a "special" key press.
+    /// </summary>
+    /// <param name="e">The <see cref="KeyEventArgs"/> to evaluate.</param>
+    /// <returns>True if the key press should be logged as special; otherwise, false.</returns>
     private static bool ShouldLogSpecial(KeyEventArgs e)
     {
         // ignore pure modifier keys (Shift/Ctrl/Alt by themselves)
@@ -91,6 +115,11 @@ public sealed class KeyboardMonitorService(
             e.KeyCode is >= Keys.F1 and <= Keys.F24;   // function keys
     }
 
+    /// <summary>
+    /// Builds a string representation for a special key event.
+    /// </summary>
+    /// <param name="e">The <see cref="KeyEventArgs"/> of the special key press.</param>
+    /// <returns>A string representing the special key combination (e.g., "ctrl+alt+delete").</returns>
     private static string BuildSpecialString(KeyEventArgs e)
     {
         var parts = new List<string>();
@@ -116,6 +145,9 @@ public sealed class KeyboardMonitorService(
 
     /* --------------------------- storage ------------------------------ */
 
+    /// <summary>
+    /// Flushes the character buffer to storage.
+    /// </summary>
     private void FlushBuffer()
     {
         if (_buffer.Length == 0) return;
@@ -123,6 +155,11 @@ public sealed class KeyboardMonitorService(
         _buffer.Clear();
     }
 
+    /// <summary>
+    /// Asynchronously saves a keyboard log entry.
+    /// </summary>
+    /// <param name="type">The type of keyboard input.</param>
+    /// <param name="value">The value of the log entry.</param>
     private async Task SaveAsync(KeyboardInputType type, string value)
     {
 

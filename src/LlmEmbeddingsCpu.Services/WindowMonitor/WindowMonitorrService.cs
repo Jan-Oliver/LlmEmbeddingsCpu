@@ -2,11 +2,14 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.WindowMonitorStorage;
+using LlmEmbeddingsCpu.Data.WindowLogIO;
 using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.WindowMonitor
 {
+    /// <summary>
+    /// Monitors for changes in the active foreground window and logs the window information.
+    /// </summary>
     public class WindowMonitorrService : IDisposable
     {
         // Delegate for the hook procedure
@@ -35,13 +38,15 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
         private IntPtr _hookHandle = IntPtr.Zero;
         private readonly WinEventDelegate _eventDelegate; // Keep a reference to prevent GC
 
-        public event EventHandler<ActiveWindowLog>? ActiveWindowChanged;
-
-        private readonly WindowMonitorStorageService _windowMonitorStorageService;
+        private readonly WindowLogIOService _windowMonitorStorageService;
         private readonly ILogger<WindowMonitorrService> _logger;
+        
+        /// <summary>
+        /// Initializes a new instance of the <see cref="WindowMonitorrService"/> class.
+        /// </summary>
         public WindowMonitorrService(
             ILogger<WindowMonitorrService> logger,
-            WindowMonitorStorageService windowMonitorStorageService)
+            WindowLogIOService windowMonitorStorageService)
         {
             _logger = logger;
             // Keep the delegate instance to prevent it from being garbage collected
@@ -49,6 +54,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             _windowMonitorStorageService = windowMonitorStorageService;
         }
 
+        /// <summary>
+        /// Starts monitoring for active window changes.
+        /// </summary>
         public void StartTracking()
         {
             if (_hookHandle != IntPtr.Zero)
@@ -57,25 +65,18 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                 return;
             }
 
-            // Hook for foreground window changes.
-            // WINEVENT_OUTOFCONTEXT means the DLL is not mapped into the address space of the process that generates the event.
-            // We listen to events from all processes (idProcess = 0) and all threads (idThread = 0).
             _hookHandle = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _eventDelegate, 0, 0, WINEVENT_OUTOFCONTEXT);
 
             if (_hookHandle == IntPtr.Zero)
             {
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Failed to set WinEventHook.");
             }
-
-            // Optionally, trigger an event for the current window immediately
-            // This requires running GetCurrentWindowInfo on the same thread that calls Start(),
-            // or carefully managing thread context if you make WinEventProc more complex.
-            // For simplicity here, we'll rely on the first window change event.
-            // Or you could call a method like this:
-            // TriggerInitialEvent();
             _logger.LogInformation("Window tracking started...");
         }
 
+        /// <summary>
+        /// Stops monitoring for active window changes.
+        /// </summary>
         public void StopTracking()
         {
             if (_hookHandle != IntPtr.Zero)
@@ -86,15 +87,17 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             _logger.LogInformation("Window tracking stopped.");
         }
 
+        /// <summary>
+        /// The callback method for the window event hook.
+        /// </summary>
         private void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             // Filter for EVENT_SYSTEM_FOREGROUND
-            // idObject must be OBJID_WINDOW and idChild must be CHILDID_SELF for foreground changes.
-            if (eventType == EVENT_SYSTEM_FOREGROUND && idObject == 0 && idChild == 0) // Simplified check, OBJID_WINDOW = 0
+            if (eventType == EVENT_SYSTEM_FOREGROUND && idObject == 0 && idChild == 0)
             {
                 try
                 {
-                    var windowInfo = GetActiveWindowInfo(hwnd);
+                    var windowInfo = GetActiveWindowInfo(hwnd, _logger);
 
                     Task.Run(async () =>
                     {
@@ -103,41 +106,30 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
                             if (windowInfo != null)
                             {
                                 await _windowMonitorStorageService.SaveLogAsync(windowInfo);
-                                // Optional: Log success
-                                _logger.LogInformation("Successfully saved log for: {WindowTitle}", windowInfo.WindowTitle);
+                                _logger.LogDebug("Successfully saved log for: {WindowTitle}", windowInfo.WindowTitle);
                             }
                         }
                         catch (Exception storageEx)
                         {
-                            // Handle or log exceptions that occur during the storage process
                             _logger.LogError("Error during storage operation: {ErrorMessage}", storageEx.Message);
-                            // You might want more sophisticated logging here
+                            _logger.LogError("Error during storage operation: {ErrorMessage}", storageEx.StackTrace);
                         }
                     });
-
-                    ActiveWindowChanged?.Invoke(this, windowInfo);
                 }
                 catch (Exception ex)
                 {
-                    // Log or handle exceptions during info gathering or event invocation
                     _logger.LogError("Error in WinEventProc: {ErrorMessage}", ex.Message);
+                    _logger.LogError("Error in WinEventProc: {ErrorMessage}", ex.StackTrace);
                 }
             }
         }
-        
+
         /// <summary>
-        /// Gets information about the currently active foreground window.
-        /// Can be called independently if needed.
+        /// Gets information about a specific window handle.
         /// </summary>
-        public static ActiveWindowLog GetCurrentActiveWindowInfo()
-        {
-             IntPtr currentHwnd = GetForegroundWindow();
-             if (currentHwnd == IntPtr.Zero) return null;
-             return GetActiveWindowInfo(currentHwnd);
-        }
-
-
-        private static ActiveWindowLog GetActiveWindowInfo(IntPtr hWnd)
+        /// <param name="hWnd">The handle of the window.</param>
+        /// <returns>An <see cref="ActiveWindowLog"/> containing information about the window.</returns>
+        private static ActiveWindowLog? GetActiveWindowInfo(IntPtr hWnd, ILogger logger)
         {
             if (hWnd == IntPtr.Zero) return null;
 
@@ -146,8 +138,7 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             int result = GetWindowText(hWnd, windowTitleBuilder, windowTitleBuilder.Capacity);
             string windowTitle = result > 0 ? windowTitleBuilder.ToString() : string.Empty;
 
-            uint processIdRaw;
-            uint threadId = GetWindowThreadProcessId(hWnd, out processIdRaw);
+            uint threadId = GetWindowThreadProcessId(hWnd, out uint processIdRaw);
             if (threadId == 0)
             {
                 return null;
@@ -158,15 +149,15 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             {
                 Process process = Process.GetProcessById(processId);
                 processName = process.ProcessName;
-                process.Dispose(); // Dispose the Process object
+                process.Dispose();
             }
-            catch (ArgumentException) // Process might have exited
+            catch (ArgumentException)
             {
-                // Process with this ID might not be running or accessible
+                logger.LogError("Process with this ID might not be running or accessible");
             }
-            catch (Exception ex) // Other potential exceptions
+            catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error getting process info for PID {processId}: {ex.Message}");
+                logger.LogError("Error getting process info for PID {ProcessId}: {ErrorMessage}", processId, ex.Message);
             }
 
             return new ActiveWindowLog
@@ -177,6 +168,9 @@ namespace LlmEmbeddingsCpu.Services.WindowMonitor
             };
         }
 
+        /// <summary>
+        /// Disposes the window monitor and stops tracking.
+        /// </summary>
         public void Dispose()
         {
             StopTracking();

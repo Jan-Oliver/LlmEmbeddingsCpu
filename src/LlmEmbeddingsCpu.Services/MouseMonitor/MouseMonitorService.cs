@@ -1,20 +1,25 @@
 using Gma.System.MouseKeyHook;
 using System.Windows.Forms;
 using LlmEmbeddingsCpu.Core.Models;
-using LlmEmbeddingsCpu.Data.MouseInputStorage;
+using LlmEmbeddingsCpu.Data.MouseLogIO;
 using Microsoft.Extensions.Logging;
 
 namespace LlmEmbeddingsCpu.Services.MouseMonitor
 {
+    /// <summary>
+    /// Monitors global mouse click events and logs them.
+    /// </summary>
     public class MouseMonitorService(
-        MouseInputStorageService mouseInputStorageService,
+        MouseLogIOService mouseInputStorageService,
         ILogger<MouseMonitorService> logger)
     {
         private IMouseEvents? _globalHook;
-        private readonly MouseInputStorageService _mouseInputStorageService = mouseInputStorageService;
+        private readonly MouseLogIOService _mouseInputStorageService = mouseInputStorageService;
         private readonly ILogger<MouseMonitorService> _logger = logger;
-        public event EventHandler<string>? TextCaptured;
 
+        /// <summary>
+        /// Starts monitoring global mouse click events.
+        /// </summary>
         public void StartTracking()
         {
             // Subscribe to global mouse events
@@ -23,6 +28,9 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             _logger.LogInformation("Mouse tracking started...");
         }
         
+        /// <summary>
+        /// Stops monitoring global mouse click events.
+        /// </summary>
         public void StopTracking()
         {
             if (_globalHook != null)
@@ -33,6 +41,9 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
             _logger.LogInformation("Mouse tracking stopped.");
         }
 
+        /// <summary>
+        /// Handles the global mouse click event and logs the information.
+        /// </summary>
         private async void GlobalHook_MouseClick(object? sender, MouseEventArgs e)
         {
             // Create log entry
@@ -44,8 +55,7 @@ namespace LlmEmbeddingsCpu.Services.MouseMonitor
 
             await _mouseInputStorageService.SaveLogAsync(log);
             
-            // Log the event
-            _logger.LogInformation("Mouse clicked at {X}, {Y}", e.X, e.Y);
+            _logger.LogDebug("Mouse clicked at {X}, {Y}", e.X, e.Y);
         }
     }
 }

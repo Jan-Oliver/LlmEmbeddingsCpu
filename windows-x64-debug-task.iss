@@ -9,16 +9,13 @@ AppName=LLM Embeddings CPU Background Agent
 AppVersion=1.0.0
 AppPublisher=ETHZ
 
-; --- Architecture-specific settings -----------------------------------
-ArchitecturesInstallIn64BitMode=arm64
-
 ; --- Where to install --------------------------------------------------
 DefaultDirName={autopf}\LLM Embeddings CPU
 ; (Start‑menu folder—optional)
 DefaultGroupName=LLM Embeddings CPU
 
 ; --- Output EXE --------------------------------------------------------
-OutputBaseFilename=LlmEmbeddingsCpuInstallerArm64
+OutputBaseFilename=LlmEmbeddingsCpuDebugVersionInstallerX64
 
 ; --- Compression / looks ----------------------------------------------
 Compression=lzma
@@ -29,43 +26,51 @@ WizardStyle=modern
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
 
-
 ; ----------------------------------------------------------------------
 ; Copy files
 ; ----------------------------------------------------------------------
 [Files]
-; --- SINGLE‑FILE ARM64 BUILD ---
-Source: ".\src\LlmEmbeddingsCpu.App\bin\Release\net9.0-windows\win-arm64\publish\LlmEmbeddingsCpu.App.exe"; DestDir: "{app}"; Flags: ignoreversion
+; --- SINGLE‑FILE BUILD -------------------------------------------------
+; Publish with:
+;    dotnet publish -c Release -r win-x64 ^
+;       -p:PublishSingleFile=true -p:SelfContained=true
+;
+; Then point Source to that one EXE:
+Source: ".\src\LlmEmbeddingsCpu.App\bin\Debug\net9.0-windows\win-x64\publish\LlmEmbeddingsCpu.App.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-; --- Include the ARM64 VC++ Redistributable from its subfolder ---
-Source: "prerequisites\VC_redist.arm64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
+; // Include the VC++ Redistributable installer.
+; // It will be extracted to a temp folder and deleted after use.
+Source: "prerequisites\VC_redist.x64.exe"; DestDir: {tmp}; Flags: deleteafterinstall
 
 
-; ----------------------------------------------------------------------
-; Check for prerequisites before running tasks
-; ----------------------------------------------------------------------
+
+; // Check if the prerequisite is already installed.
+; // This prevents the installer from running on every installation.
 [Code]
 function ShouldInstallVcRedist: Boolean;
 var
   Installed: Cardinal;
 begin
-  // The VC++ 2015-2022 ARM64 redistributable registers itself here.
-  // Note the 'Arm64' in the registry path.
-  if not RegQueryDwordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\Arm64', 'Installed', Installed) then
+  // The VC++ 2015-2022 x64 redistributable registers itself here.
+  // We check if the 'Installed' value is present and set to 1.
+  if not RegQueryDwordValue(HKLM, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64', 'Installed', Installed) then
   begin
     // Key or value doesn't exist, so it's definitely not installed.
     Result := True;
     Exit;
   end;
 
-  // If the 'Installed' value is 1, it's installed. Otherwise, we should run it.
+  // If the 'Installed' value is 1, it's installed. Otherwise, it might be a partial/broken install, so we should run it.
   Result := (Installed <> 1);
 end;
 
 
 [Run]
-; --- First, run the ARM64 VC++ Redistributable installer if needed. ---
-Filename: "{tmp}\VC_redist.arm64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Microsoft VC++ Runtime (ARM64)..."; Check: ShouldInstallVcRedist
+; --------------------------------------------------------------------
+; // First, run the VC++ Redistributable installer if needed.
+; // This MUST be the first item in [Run] to ensure dependencies are met.
+; --------------------------------------------------------------------
+Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Microsoft VC++ Runtime..."; Check: ShouldInstallVcRedist
 
 ; --------------------------------------------------------------------
 ; Task 1: Logger - runs on user logon continuously
@@ -109,12 +114,11 @@ Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -Command ""$t = Get-Sche
 Flags: runhidden waituntilterminated; \
 StatusMsg: "Configuring aggregator task settings..."
 
-; --- Run the logger agent once right now ---
+; --- Run the logger agent once right now -------------------------
 Filename: "{app}\LlmEmbeddingsCpu.App.exe"; \
 Parameters: "--logger"; \
 Flags: runhidden nowait; \
 StatusMsg: "Launching background logger agent..."
-
 
 ; ----------------------------------------------------------------------
 ; Uninstall: clean up
