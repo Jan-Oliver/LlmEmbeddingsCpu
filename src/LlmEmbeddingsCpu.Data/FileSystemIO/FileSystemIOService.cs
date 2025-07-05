@@ -60,16 +60,16 @@ namespace LlmEmbeddingsCpu.Data.FileSystemIO
 
             try
             {
-                if (append)
-                {
-                    await File.AppendAllTextAsync(fullPath, content);
-                    _logger.LogDebug("Appended to file: {FilePath}", fullPath);
-                }
-                else
-                {
-                    await File.WriteAllTextAsync(fullPath, content);
-                    _logger.LogDebug("Wrote to file: {FilePath}", fullPath);
-                }
+                var fileMode = append ? FileMode.Append : FileMode.Create;
+                var fileAccess = FileAccess.Write;
+                var fileShare = FileShare.ReadWrite; // Allow concurrent read/write access
+                
+                using var fileStream = new FileStream(fullPath, fileMode, fileAccess, fileShare);
+                using var writer = new StreamWriter(fileStream);
+                await writer.WriteAsync(content);
+                await writer.FlushAsync();
+                
+                _logger.LogDebug("{Action} file: {FilePath}", append ? "Appended to" : "Wrote to", fullPath);
             }
             catch (IOException ex)
             {
@@ -97,7 +97,10 @@ namespace LlmEmbeddingsCpu.Data.FileSystemIO
 
             try
             {
-                return await File.ReadAllTextAsync(fullPath);
+                // Use FileStream with ReadWrite sharing to allow concurrent access
+                using var fileStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(fileStream);
+                return await reader.ReadToEndAsync();
             }
             catch (IOException ex)
             {
@@ -121,7 +124,10 @@ namespace LlmEmbeddingsCpu.Data.FileSystemIO
 
             try
             {
-                return File.ReadAllText(fullPath);
+                // Use FileStream with ReadWrite sharing to allow concurrent access
+                using var fileStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(fileStream);
+                return reader.ReadToEnd();
             }
             catch (IOException ex)
             {
