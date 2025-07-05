@@ -1207,26 +1207,26 @@ The embedding service requires the ONNX model file which is too large for versio
 
 ```bash
 # Run Logger mode (monitors user activity)
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -- --logger
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --logger
 
 # Run Processor mode (processes logs)
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -- --processor
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --processor
 
 # Run CronProcessor mode (force processes all)
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -- --cron-processor
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --cron-processor
 
 # Run Aggregator mode (archives completed data)
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -- --aggregator
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj --aggregator
 ```
 
 #### Architecture-Specific Commands:
 
 ```bash
 # Force x64 architecture
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-x64 -- --logger
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-x64 --logger
 
 # Force ARM64 architecture
-dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64 -- --logger
+dotnet run --project src/LlmEmbeddingsCpu.App/LlmEmbeddingsCpu.App.csproj -r win-arm64 --logger
 ```
 
 ### 4.5 Development File Locations
@@ -1246,8 +1246,8 @@ logs/
 │   └── YYYYMMDD/
 │       └── <guid>.json
 ├── upload-queue/
-│   └── <hostname>-<username>-YYYYMMDD.json/
-│       └── 
+│   └── <hostname>-<username>-YYYYMMDD/
+│       └──
 ├── application-aggregator-YYYYMMDD.log
 ├── application-cronprocessor-YYYYMMDD.log
 ├── application-logger-YYYYMMDD.log
@@ -1258,7 +1258,7 @@ logs/
 └── window_monitor_logs-YYYYMMDD.txt
 ```
 - The `embeddings/` folder contains daily subfolders with individual embedding JSON files.
-- The `upload-queue/` folder may be empty during development.
+- The `upload-queue/` folder may be empty during development. Only filled after the aggregator has run once and there was data to aggregate.
 - Log and data files are created per day.
 
 > **Note:** The exact path will differ depending on your build configuration (Debug/Release) and target architecture (x64/arm64).
@@ -1519,15 +1519,6 @@ schtasks /Create /F /RL HIGHEST /SC ONLOGON /DELAY 0000:10
 - `/SC ONLOGON`: Trigger on user login
 - `/DELAY 0000:10`: Wait 10 seconds after login
 - `/IT`: Allow interactive (can interact with desktop)
-
-**PowerShell Configuration:**
-```powershell
-$task = Get-ScheduledTask -TaskName "LLMEmbeddingsCpuLogger"
-$task.Settings.DisallowStartIfOnBatteries = $false
-$task.Settings.StopIfGoingOnBatteries = $false
-$task.Settings.ExecutionTimeLimit = 'PT0S'  # No time limit
-Set-ScheduledTask -TaskName "LLMEmbeddingsCpuLogger" -Settings $task.Settings
-```
 
 #### 2. Cron Processor Task (`LLMEmbeddingsCpuCron`)
 ```cmd
