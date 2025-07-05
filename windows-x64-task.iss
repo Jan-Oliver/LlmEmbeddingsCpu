@@ -122,18 +122,45 @@ StatusMsg: "Launching background logger agent..."
 
 ; ----------------------------------------------------------------------
 ; Uninstall: clean up
-; - Remove the task from scheduler
+; - Stop any running processes
+; - End any running scheduled tasks
+; - Remove the scheduled tasks from scheduler
 ; ----------------------------------------------------------------------
 [UninstallRun]
+; Stop any running scheduled tasks first
+Filename: "schtasks.exe"; \
+Parameters: "/End /TN ""LLMEmbeddingsCpuLogger"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Stopping logger task..."
+
+Filename: "schtasks.exe"; \
+Parameters: "/End /TN ""LLMEmbeddingsCpuCron"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Stopping cron task..."
+
+Filename: "schtasks.exe"; \
+Parameters: "/End /TN ""LLMEmbeddingsCpuAggregator"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Stopping aggregator task..."
+
+; Kill any running instances of the main process
+Filename: "taskkill.exe"; \
+Parameters: "/F /IM ""LlmEmbeddingsCpu.App.exe"""; \
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Stopping application processes..."
+
 ; Remove all scheduled tasks
 Filename: "schtasks.exe"; \
 Parameters: "/Delete /TN ""LLMEmbeddingsCpuLogger"" /F"; \
-Flags: runhidden waituntilterminated
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Removing logger task..."
 
 Filename: "schtasks.exe"; \
 Parameters: "/Delete /TN ""LLMEmbeddingsCpuCron"" /F"; \
-Flags: runhidden waituntilterminated
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Removing cron task..."
 
 Filename: "schtasks.exe"; \
 Parameters: "/Delete /TN ""LLMEmbeddingsCpuAggregator"" /F"; \
-Flags: runhidden waituntilterminated
+Flags: runhidden waituntilterminated; \
+StatusMsg: "Removing aggregator task..."
