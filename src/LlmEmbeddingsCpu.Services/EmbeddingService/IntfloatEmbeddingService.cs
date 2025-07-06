@@ -107,19 +107,31 @@ namespace LlmEmbeddingsCpu.Services.EmbeddingService
                 foreach (var inputLog in keyboardInputLogs)
                 {
                     string pre  = PreprocessText(inputLog.Content);
+                    _logger.LogDebug("Preprocessed text: {PreprocessedText}", pre);
                     var tokens  = _tokenizer.Encode(pre);
+                    _logger.LogDebug("Tokens: {Tokens}", tokens);
                     var vec     = GenerateEmbeddingVector(session, tokens);
+                    _logger.LogDebug("Embedding vector: {EmbeddingVector}", vec);
 
-                    results.Add(new Core.Models.Embedding
+                    var embedding = new Core.Models.Embedding
                     {
                         Vector     = vec,
                         ModelName  = _modelName,
                         Timestamp  = inputLog.Timestamp,
-                        KeyboardInputType = inputLog.Type
-                    });
+                        KeyboardInputType = inputLog.Type,
+#if DEBUG
+                        OriginalText = inputLog.Content
+#else
+                        OriginalText = string.Empty
+#endif
+                    };
+
+                    _logger.LogDebug("Embedding: {Embedding}", embedding.ToString());
+
+                    results.Add(embedding);
                 }
 
-                session.Dispose();
+                //session.Dispose();
                 return results;
             });
         }

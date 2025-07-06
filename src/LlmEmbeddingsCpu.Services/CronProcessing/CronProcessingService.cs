@@ -111,6 +111,8 @@ namespace LlmEmbeddingsCpu.Services.CronProcessing
         {
             var nonEmptyLogs = keyboardLogs.Where(log => !string.IsNullOrWhiteSpace(log.Content)).ToList();
 
+            _logger.LogDebug("Processing batch of {Count} keyboard logs", nonEmptyLogs.Count);
+
             if (nonEmptyLogs.Count == 0)
             {
                 _logger.LogWarning("Skipping batch due to empty logs");
@@ -121,6 +123,9 @@ namespace LlmEmbeddingsCpu.Services.CronProcessing
                 {
                 // Generate embedding
                 var embeddings = await _embeddingService.GenerateEmbeddingsAsync(nonEmptyLogs);
+                
+                _logger.LogDebug("Generated {Count} embeddings", embeddings.Count());
+                _logger.LogDebug("First embedding: {Embedding}", embeddings.First().ToString());
                 
                 // Store embedding using the date parameter
                 await _embeddingIOService.SaveEmbeddingsAsync(embeddings, date);

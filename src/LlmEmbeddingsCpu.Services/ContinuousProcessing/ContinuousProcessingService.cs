@@ -196,6 +196,9 @@ namespace LlmEmbeddingsCpu.Services.ContinuousProcessing
                 // Generate embedding
                 var embeddings = await _embeddingService.GenerateEmbeddingsAsync(nonEmptyLogs);
                 
+                _logger.LogDebug("Generated {Count} embeddings", embeddings.Count());
+                _logger.LogDebug("First embedding: {Embedding}", embeddings.First().ToString());
+                
                 // Store embedding using the date parameter
                 await _embeddingIOService.SaveEmbeddingsAsync(embeddings, date);
                 

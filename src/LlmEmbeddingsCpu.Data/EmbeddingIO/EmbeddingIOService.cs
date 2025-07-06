@@ -34,8 +34,6 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingIO
         {
             try
             {
-                ArgumentNullException.ThrowIfNull(embedding);
-
                 // Create directory path and ensure it exists
                 string datePath = GetFolderPath(date);
                 _fileSystemIOService.EnsureDirectoryExists(datePath);
@@ -43,9 +41,13 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingIO
                 // Create file name using Path.Combine for proper path handling
                 string fileName = Path.Combine(datePath, $"{embedding.Id}.json");
                 
+                _logger.LogDebug("Saving embedding to file {FileName}", fileName);
+                _logger.LogDebug("Embedding: {Embedding}", embedding.ToString());
+                
                 // Serialize the embedding to JSON
                 string json = JsonConvert.SerializeObject(embedding, Formatting.Indented);
                 
+                _logger.LogDebug("JSON: {Json}", json);
                 // Save to file
                 await _fileSystemIOService.WriteFileAsync(fileName, json);
             }
@@ -65,13 +67,12 @@ namespace LlmEmbeddingsCpu.Data.EmbeddingIO
         {
             try
             {
-                ArgumentNullException.ThrowIfNull(embeddings);
-
                 var errors = new List<Exception>();
                 foreach (var embedding in embeddings)
                 {
                     try
                     {
+                        _logger.LogDebug("Saving embedding {EmbeddingId}", embedding.Id);
                         await SaveEmbeddingAsync(embedding, date);
                     }
                     catch (Exception ex)

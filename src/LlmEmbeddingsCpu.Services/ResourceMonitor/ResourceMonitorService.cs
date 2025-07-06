@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Timers;
 using LlmEmbeddingsCpu.Data.KeyboardLogIO;
+using LlmEmbeddingsCpu.Data.ProcessingStateIO;
 
 namespace LlmEmbeddingsCpu.Services.ResourceMonitor
 {
@@ -19,6 +20,7 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         private readonly ILogger<ResourceMonitorService> _logger;
         private readonly FileSystemIOService _fileSystemIOService;
         private readonly KeyboardLogIOService _keyboardLogIOService;
+        private readonly ProcessingStateIOService _processingStateIOService;
 
         private readonly System.Timers.Timer _monitoringTimer;
         private readonly List<float> _cpuUsageHistory = new();
@@ -28,16 +30,17 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         private const int MonitoringIntervalMs = 180000; // 3 minutes
         private const float CpuThreshold = 30.0f; // 30%
         private const int RequiredLowCpuChecks = 3;
-        private const string ProcessingStatePath = "processing_state.json";
 
         public ResourceMonitorService(
             ILogger<ResourceMonitorService> logger, 
             FileSystemIOService fileSystemIOService,
-            KeyboardLogIOService keyboardLogIOService
+            KeyboardLogIOService keyboardLogIOService,
+            ProcessingStateIOService processingStateIOService
         ) {
             _logger = logger;
             _fileSystemIOService = fileSystemIOService;
             _keyboardLogIOService = keyboardLogIOService;
+            _processingStateIOService = processingStateIOService;
 
             _cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
             
@@ -126,20 +129,22 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
         {
             try
             {
-                var processingState = LoadProcessingState();
+                // Get dates to process including today
+                var datesToProcess = _keyboardLogIOService.GetDatesToProcess(includeToday: true);
                 
-                // Check all log files for unprocessed lines
-                var logFiles = GetLogFiles();
-                
-                foreach (var logFile in logFiles)
+                foreach (var date in datesToProcess)
                 {
-                    var linesOnDisk = CountLinesInFile(logFile);
-                    var processedLines = processingState.GetValueOrDefault(logFile, 0);
+                    var dateKey = ProcessingStateIOService.GetDateKey(date);
+                    var processedCount = _processingStateIOService.GetProcessedCount(dateKey);
                     
-                    if (linesOnDisk > processedLines)
+                    // Get actual log count for this date
+                    var logs = _keyboardLogIOService.GetPreviousLogsAsyncDecrypted(date).GetAwaiter().GetResult();
+                    var totalCount = logs.Count();
+                    
+                    if (totalCount > processedCount)
                     {
-                        _logger.LogInformation("Found work in {LogFile}: {LinesOnDisk} lines on disk, {ProcessedLines} processed", 
-                            logFile, linesOnDisk, processedLines);
+                        _logger.LogInformation("Found work for date {Date}: {TotalCount} logs on disk, {ProcessedCount} processed", 
+                            dateKey, totalCount, processedCount);
                         return true;
                     }
                 }
@@ -153,57 +158,8 @@ namespace LlmEmbeddingsCpu.Services.ResourceMonitor
             }
         }
 
-        private Dictionary<string, int> LoadProcessingState()
-        {
-            try
-            {
-                var stateFilePath = _fileSystemIOService.GetFullPath(ProcessingStatePath);
-                
-                if (!File.Exists(stateFilePath))
-                {
-                    return new Dictionary<string, int>();
-                }
 
-                var json = File.ReadAllText(stateFilePath);
-                return JsonConvert.DeserializeObject<Dictionary<string, int>>(json) ?? new Dictionary<string, int>();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error loading processing state, returning empty state");
-                return new Dictionary<string, int>();
-            }
-        }
 
-        private List<string> GetLogFiles()
-        {
-            var logFiles = new List<string>();
-            
-            // Get keyboard log files (including today's logs for resource monitoring)
-            var datesToProcess = _keyboardLogIOService.GetDatesToProcess(includeToday: true);
-            foreach (var date in datesToProcess)
-            {
-                logFiles.Add(_keyboardLogIOService.GetFilePath(date));
-            }
-            
-            return logFiles;
-        }
-
-        private int CountLinesInFile(string filePath)
-        {
-            try
-            {
-                if (!_fileSystemIOService.CheckIfFileExists(filePath))
-                    return 0;
-
-                var content = _fileSystemIOService.ReadFileIfExists(filePath);
-                return content.Split('\n').Length;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error counting lines in file {FilePath}", filePath);
-                return 0;
-            }
-        }
 
         private void TriggerContinuousProcessor()
         {
